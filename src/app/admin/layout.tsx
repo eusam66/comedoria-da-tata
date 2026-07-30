@@ -1,0 +1,47 @@
+'use client';
+import React from 'react';
+import Link from 'next/link';
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-brand-beige">
+      {/* Desktop sidebar */}
+      <div className="hidden md:flex">
+        <aside className="w-64 bg-white border-r p-4 h-screen fixed">
+          <div className="font-display text-lg mb-4">Painel — Comedoria</div>
+          <nav className="flex flex-col gap-2">
+            <Link href="/admin" className="px-3 py-3 rounded hover:bg-brand-beige">Dashboard</Link>
+            <Link href="/admin/dishes" className="px-3 py-3 rounded hover:bg-brand-beige">Pratos</Link>
+            <Link href="/admin/categories" className="px-3 py-3 rounded hover:bg-brand-beige">Categorias</Link>
+            <Link href="/admin/banners" className="px-3 py-3 rounded hover:bg-brand-beige">Banners</Link>
+            <Link href="/admin/orders" className="px-3 py-3 rounded hover:bg-brand-beige">Pedidos</Link>
+            <Link href="/admin/settings" className="px-3 py-3 rounded hover:bg-brand-beige">Configurações</Link>
+          </nav>
+        </aside>
+      </div>
+
+      {/* Main content area */}
+      <main className="md:ml-64 p-4 pb-28 min-h-screen">{children}</main>
+
+      {/* Bottom navigation for mobile */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t p-2 flex justify-around md:hidden z-40">
+        <Link href="/admin" className="flex flex-col items-center text-xs">
+          <span className="w-8 h-8 rounded-full bg-brand-beige flex items-center justify-center">🏠</span>
+          <span className="mt-1">Dashboard</span>
+        </Link>
+        <Link href="/admin/dishes" className="flex flex-col items-center text-xs">
+          <span className="w-8 h-8 rounded-full bg-brand-beige flex items-center justify-center">🍽️</span>
+          <span className="mt-1">Pratos</span>
+        </Link>
+        <Link href="/admin/orders" className="flex flex-col items-center text-xs">
+          <span className="w-8 h-8 rounded-full bg-brand-beige flex items-center justify-center">📦</span>
+          <span className="mt-1">Pedidos</span>
+        </Link>
+        <Link href="/admin/settings" className="flex flex-col items-center text-xs">
+          <span className="w-8 h-8 rounded-full bg-brand-beige flex items-center justify-center">⚙️</span>
+          <span className="mt-1">Config</span>
+        </Link>
+      </nav>
+    </div>
+  );
+}

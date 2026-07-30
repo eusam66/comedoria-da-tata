@@ -1,0 +1,34 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=Playfair+Display:wght@400;700;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root{
+  --brand-dark: #2A140F;
+  --brand-brown: #6B3A1A;
+  --brand-orange: #F58634;
+  --brand-beige: #F7F2EC;
+}
+
+html, body, #__next{
+  height:100%;
+}
+
+body{
+  @apply bg-brand-beige text-brand-dark font-body;
+}
+
+/* Simple utility for horizontal snap scrolling */
+.scroll-x {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.scroll-x > *{
+  scroll-snap-align: start;
+}
+
+.header-logo{
+  font-family: 'Playfair Display', serif;
+}
