@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 Comedoria da Tata — Sprint 1
 
 Este repositório contém a fundação do frontend para o projeto "Comedoria da Tata".
@@ -79,3 +80,7 @@ Migrações
 - Encontre as migrações SQL em db/migrations. Aplique-as no seu projeto Supabase (por exemplo via psql, supabase CLI ou diretamente no Editor SQL do painel Supabase).
 
 Obs: o scaffold automático (create-next-app) não pôde ser executado neste ambiente; os arquivos base foram criados manualmente — rode npm install localmente.
+=======
+# comedoriadatata
+Comedoria via Delivery 
+>>>>>>> 62cc1a170282b18b51e5b9cf4b0f8145fd77e6bd
