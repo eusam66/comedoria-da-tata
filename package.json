@@ -15,7 +15,7 @@
     "next": "^15.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "next-pwa": "^7.6.6",
+    "next-pwa": "^5.6.0",
     "@supabase/supabase-js": "^2.28.0",
     "uuid": "^9.0.0"
   },
