@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { searchDishes, getDishes } from '../../../../lib/api';
+import { searchDishes, getDishes } from '@/lib/api';
 
 export async function GET(req: Request) {
   try {

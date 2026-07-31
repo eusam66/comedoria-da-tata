@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import * as adminApi from '../../../../../lib/adminApi';
+import * as adminApi from '@/lib/adminApi';
 
 export async function PATCH(req: Request, { params }: { params: { code: string } }) {
   try {
-    await (await import('../../../../../lib/adminAuth')).requireAdmin(req);
+    await (await import('@/lib/adminAuth')).requireAdmin(req);
     const body = await req.json();
     const updated = await adminApi.adminUpdateOrderStatus(params.code, body.status);
     return NextResponse.json(updated);
