@@ -2,6 +2,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { generateOrderCode } from './orders';
 import supabaseAdmin from './supabaseAdmin';
 
+function adminClient(): any {
+  if (!supabaseAdmin) {
+    throw new Error('Supabase admin client not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
+  }
+  return supabaseAdmin as any;
+}
+
 // Admin API backed by Supabase (server-side client). Assumes the following tables exist:
 // categories (id uuid primary key, name text, image text)
 // dishes (id uuid primary key, code text, name text, slug text, description text, price numeric, image text, category_id uuid, ingredients text[], servings int, popular boolean, is_new boolean, created_at timestamptz)
@@ -9,34 +16,34 @@ import supabaseAdmin from './supabaseAdmin';
 // orders (id uuid primary key, code text, items jsonb, total numeric, status text, created_at timestamptz, customer jsonb)
 
 export async function adminListCategories() {
-  const { data, error } = await supabaseAdmin.from('categories').select('*').order('name');
+  const { data, error } = await adminClient().from('categories').select('*').order('name');
   if (error) throw error;
   return data;
 }
 
 export async function adminCreateCategory(payload: { name: string; image?: string }) {
   const id = uuidv4();
-  const { data, error } = await supabaseAdmin.from('categories').insert([{ id, name: payload.name, image: payload.image }]).select().single();
+  const { data, error } = await adminClient().from('categories').insert([{ id, name: payload.name, image: payload.image }]).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function adminUpdateCategory(id: string, payload: { name?: string; image?: string }) {
-  const { data, error } = await supabaseAdmin.from('categories').update(payload).eq('id', id).select().single();
+  const { data, error } = await adminClient().from('categories').update(payload).eq('id', id).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function adminDeleteCategory(id: string) {
-  const { error } = await supabaseAdmin.from('categories').delete().eq('id', id);
+  const { error } = await adminClient().from('categories').delete().eq('id', id);
   if (error) throw error;
   // detach category from dishes (set null)
-  await supabaseAdmin.from('dishes').update({ category_id: null }).eq('category_id', id);
+  await adminClient().from('dishes').update({ category_id: null }).eq('category_id', id);
   return true;
 }
 
 export async function adminListDishes() {
-  const { data, error } = await supabaseAdmin.from('dishes').select('*').order('created_at', { ascending: false });
+  const { data, error } = await adminClient().from('dishes').select('*').order('created_at', { ascending: false });
   if (error) throw error;
   return data;
 }
@@ -58,7 +65,7 @@ export async function adminCreateDish(payload: any) {
     popular: payload.popular || false,
     is_new: payload.isNew || false
   };
-  const { data, error } = await supabaseAdmin.from('dishes').insert([row]).select().single();
+  const { data, error } = await adminClient().from('dishes').insert([row]).select().single();
   if (error) throw error;
   return data;
 }
@@ -75,19 +82,19 @@ export async function adminUpdateDish(id: string, payload: any) {
   if (payload.servings !== undefined) patch.servings = payload.servings;
   if (payload.popular !== undefined) patch.popular = payload.popular;
   if (payload.isNew !== undefined) patch.is_new = payload.isNew;
-  const { data, error } = await supabaseAdmin.from('dishes').update(patch).eq('id', id).select().single();
+  const { data, error } = await adminClient().from('dishes').update(patch).eq('id', id).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function adminDeleteDish(id: string) {
-  const { error } = await supabaseAdmin.from('dishes').delete().eq('id', id);
+  const { error } = await adminClient().from('dishes').delete().eq('id', id);
   if (error) throw error;
   return true;
 }
 
 export async function adminListBanners() {
-  const { data, error } = await supabaseAdmin.from('banners').select('*').order('created_at', { ascending: false });
+  const { data, error } = await adminClient().from('banners').select('*').order('created_at', { ascending: false });
   if (error) throw error;
   return data;
 }
@@ -95,19 +102,19 @@ export async function adminListBanners() {
 export async function adminCreateBanner(payload: any) {
   const id = uuidv4();
   const row = { id, title: payload.title, subtitle: payload.subtitle, image: payload.image || null };
-  const { data, error } = await supabaseAdmin.from('banners').insert([row]).select().single();
+  const { data, error } = await adminClient().from('banners').insert([row]).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function adminUpdateBanner(id: string, payload: any) {
-  const { data, error } = await supabaseAdmin.from('banners').update(payload).eq('id', id).select().single();
+  const { data, error } = await adminClient().from('banners').update(payload).eq('id', id).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function adminDeleteBanner(id: string) {
-  const { error } = await supabaseAdmin.from('banners').delete().eq('id', id);
+  const { error } = await adminClient().from('banners').delete().eq('id', id);
   if (error) throw error;
   return true;
 }
@@ -135,25 +142,25 @@ export async function adminCreateOrder(payload: { items: Order['items']; custome
     status: 'Novo',
     customer: payload.customer || null
   };
-  const { data, error } = await supabaseAdmin.from('orders').insert([row]).select().single();
+  const { data, error } = await adminClient().from('orders').insert([row]).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function adminListOrders() {
-  const { data, error } = await supabaseAdmin.from('orders').select('*').order('created_at', { ascending: false });
+  const { data, error } = await adminClient().from('orders').select('*').order('created_at', { ascending: false });
   if (error) throw error;
   return data;
 }
 
 export async function adminGetOrderByCode(code: string) {
-  const { data, error } = await supabaseAdmin.from('orders').select('*').eq('code', code).limit(1).maybeSingle();
+  const { data, error } = await adminClient().from('orders').select('*').eq('code', code).limit(1).maybeSingle();
   if (error) throw error;
   return data;
 }
 
 export async function adminUpdateOrderStatus(code: string, status: Order['status']) {
-  const { data, error } = await supabaseAdmin.from('orders').update({ status }).eq('code', code).select().single();
+  const { data, error } = await adminClient().from('orders').update({ status }).eq('code', code).select().single();
   if (error) throw error;
   return data;
 }

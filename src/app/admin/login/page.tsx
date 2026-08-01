@@ -14,7 +14,7 @@ export default function AdminLogin() {
     e.preventDefault();
     setLoading(true); setError(null);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email: user, password: pass });
+      const { data, error } = await (supabase as any).auth.signInWithPassword({ email: user, password: pass });
       if (error) throw error;
       const session = (data as any)?.session;
       if (!session) throw new Error('No session returned');

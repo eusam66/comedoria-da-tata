@@ -34,7 +34,13 @@ export function toast(message: string, opts?: { type?: 'success' | 'error' | 'in
   setTimeout(() => {
     el.style.transform = 'translateY(8px)';
     el.style.opacity = '0';
-    setTimeout(() => { try { document.body.removeChild(el); } catch {} }, 300);
+    setTimeout(() => {
+      try {
+        document.body.removeChild(el);
+      } catch (error) {
+        console.warn('Failed to remove toast element', error);
+      }
+    }, 300);
   }, duration);
 }
 

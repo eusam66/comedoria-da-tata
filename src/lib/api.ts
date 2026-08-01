@@ -34,7 +34,8 @@ function mapDishRow(row: any): Dish {
 }
 
 export async function getCategories(): Promise<Category[]> {
-  const { data, error } = await supabase.from('categories').select('*').order('name');
+  if (!supabase) return [];
+  const { data, error } = await (supabase as any).from('categories').select('*').order('name');
   if (error) {
     console.error('getCategories error', error);
     return [];
@@ -43,7 +44,8 @@ export async function getCategories(): Promise<Category[]> {
 }
 
 export async function getDishes(): Promise<Dish[]> {
-  const { data, error } = await supabase.from('dishes').select('*').order('name');
+  if (!supabase) return [];
+  const { data, error } = await (supabase as any).from('dishes').select('*').order('name');
   if (error) {
     console.error('getDishes error', error);
     return [];
@@ -52,7 +54,8 @@ export async function getDishes(): Promise<Dish[]> {
 }
 
 export async function getDishBySlug(slug: string): Promise<Dish | undefined> {
-  const { data, error } = await supabase.from('dishes').select('*').eq('slug', slug).limit(1).maybeSingle();
+  if (!supabase) return undefined;
+  const { data, error } = await (supabase as any).from('dishes').select('*').eq('slug', slug).limit(1).maybeSingle();
   if (error) {
     console.error('getDishBySlug error', error);
     return undefined;
@@ -62,8 +65,9 @@ export async function getDishBySlug(slug: string): Promise<Dish | undefined> {
 }
 
 export async function searchDishes(query: { q?: string; categoryId?: string }): Promise<Dish[]> {
+  if (!supabase) return [];
   const q = query.q?.trim();
-  let builder = supabase.from('dishes').select('*');
+  let builder = (supabase as any).from('dishes').select('*');
   if (query.categoryId) builder = builder.eq('category_id', query.categoryId);
   if (q && q.length > 0) {
     // buscar por nome ou descrição (ilike)

@@ -6,8 +6,9 @@ import Footer from '../../../components/layout/Footer';
 import DishGallery from '../../../components/DishGallery';
 import FloatingWhatsAppOrder from '../../../components/FloatingWhatsAppOrder';
 
-export async function generateMetadata({ params }: { params: { slug: string } }) {
-  const dish = await getDishBySlug(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const resolvedParams = await params;
+  const dish = await getDishBySlug(resolvedParams.slug);
   if (!dish) return { title: 'Prato não encontrado' };
   return {
     title: `${dish.name} — Comedoria da Tata`,
@@ -15,8 +16,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default async function DishPage({ params }: { params: { slug: string } }) {
-  const dish = await getDishBySlug(params.slug);
+export default async function DishPage({ params }: { params: Promise<{ slug: string }> }) {
+  const resolvedParams = await params;
+  const dish = await getDishBySlug(resolvedParams.slug);
   if (!dish) return notFound();
 
   const whatsappMessage = encodeURIComponent(`Pedido: ${dish.code} - ${dish.name}\nPreço: R$ ${dish.price.toFixed(2)}\nServe: ${dish.servings ?? 1} pessoa(s)`);
@@ -32,9 +34,9 @@ export default async function DishPage({ params }: { params: { slug: string } })
         <div className="bg-white rounded-lg p-6 shadow-md">
           <div className="flex flex-col md:flex-row gap-6">
             <div className="w-full md:w-1/3">
-              {(dish.images && dish.images.length > 0) || dish.image ? (
+              {dish.image ? (
                 // @ts-ignore - DishGallery is a client component
-                              <DishGallery images={(dish.images && dish.images.length > 0) ? dish.images : (dish.image ? [dish.image] : [])} />
+                              <DishGallery images={[dish.image]} />
               ) : (
                 <div className="h-64 bg-brand-beige rounded-md flex items-center justify-center">Imagem</div>
               )}

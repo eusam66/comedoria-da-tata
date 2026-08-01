@@ -1,10 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import AdminLayout from './layout';
-import { adminListOrders } from '../../lib/adminApi';
+import { adminListOrders, type Order } from '../../lib/adminApi';
 
 export default async function AdminDashboard() {
   // server component allowed to call async data sources; here adminListOrders is sync mock but fine
-  const orders = await adminListOrders();
+  let orders: Order[] = [];
+  try {
+    orders = (await adminListOrders()) as Order[];
+  } catch (err) {
+    console.warn('adminListOrders unavailable during build', err);
+    orders = [];
+  }
   const recent = orders.slice(0, 5);
 
   return (

@@ -3,7 +3,7 @@ import * as adminApi from '@/lib/adminApi';
 
 export async function GET(req: Request) {
   try {
-    await (await import('@/lib/adminAuth')).requireAdmin(req);
+    await (await import('@/lib/adminAuthSafe')).requireAdmin(req);
     const list = await adminApi.adminListCategories();
     return NextResponse.json(list);
   } catch (err:any) {
@@ -15,7 +15,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    await (await import('@/lib/adminAuth')).requireAdmin(req);
+    await (await import('@/lib/adminAuthSafe')).requireAdmin(req);
     const body = await req.json();
     const created = await adminApi.adminCreateCategory(body);
     return NextResponse.json(created);

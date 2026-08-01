@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const PUBLIC_FILE = /(.*)\.(.*)$/i;
@@ -26,7 +26,7 @@ export async function middleware(req: NextRequest) {
 
   // validate token with Supabase auth endpoint
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || process.env.URL_SUPABASE;
     if (!supabaseUrl) {
       console.warn('SUPABASE_URL not set');
       return NextResponse.redirect(new URL('/admin/login', req.url));

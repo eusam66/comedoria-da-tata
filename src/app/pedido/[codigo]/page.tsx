@@ -1,15 +1,17 @@
 import React from 'react';
 import { notFound } from 'next/navigation';
-import { adminGetOrderByCode } from '../../../lib/adminApi';
+import { adminGetOrderByCode, type Order } from '../../../lib/adminApi';
 
-export async function generateMetadata({ params }: { params: { codigo: string } }) {
-  const order = await adminGetOrderByCode(params.codigo);
+export async function generateMetadata({ params }: { params: Promise<{ codigo: string }> }) {
+  const resolvedParams = await params;
+  const order = (await adminGetOrderByCode(resolvedParams.codigo)) as Order | null;
   if (!order) return { title: 'Pedido não encontrado' };
   return { title: `Pedido ${order.code} — Comedoria da Tata`, description: `Status atual: ${order.status}` };
 }
 
-export default async function OrderPage({ params }: { params: { codigo: string } }) {
-  const order = await adminGetOrderByCode(params.codigo);
+export default async function OrderPage({ params }: { params: Promise<{ codigo: string }> }) {
+  const resolvedParams = await params;
+  const order = (await adminGetOrderByCode(resolvedParams.codigo)) as Order | null;
   if (!order) return notFound();
 
   const timeline = ['Novo','Confirmado','Em preparo','Saiu para entrega','Entregue'];

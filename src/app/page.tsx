@@ -16,13 +16,20 @@ export default async function HomePage() {
 
   const categories = await getCategories();
   const banners = await bannersRepo.list().catch(()=>[]);
+  const promoBanner = banners[0]
+    ? {
+        ...banners[0],
+        title: banners[0].title ?? 'Promoção do dia',
+        subtitle: banners[0].subtitle ?? 'Frete grátis'
+      }
+    : { id: 'b-placeholder', title: 'Promoção do dia', subtitle: 'Frete grátis' };
 
   return (
     <main className="min-h-screen flex flex-col">
       <Header open={open} avgTime={avgTime} />
 
       <div className="container mx-auto px-4 py-4 flex-1">
-        <Banner banner={banners[0] || { id: 'b-placeholder', title: 'Promoção do dia', subtitle: 'Frete grátis' }} />
+        <Banner banner={promoBanner} />
 
         <div className="mt-4">
           <div className="mb-3">
