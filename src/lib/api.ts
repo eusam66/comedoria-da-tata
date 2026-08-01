@@ -43,9 +43,28 @@ export async function getCategories(): Promise<Category[]> {
   return (data || []) as Category[];
 }
 
+import fs from 'fs';
+import path from 'path';
+
 export async function getDishes(): Promise<Dish[]> {
-  if (!supabase) return [];
+  if (!supabase) {
+    // Fallback to local seed file for environments without Supabase keys
+    try {
+      const seedPath = path.join(process.cwd(), 'supabase', 'seeds', 'dishes.json');
+      if (fs.existsSync(seedPath)) {
+        const raw = fs.readFileSync(seedPath, 'utf8');
+        const arr = JSON.parse(raw) as any[];
+        console.log('getDishes: using local seed fallback, count=', arr.length);
+        return arr.map(mapDishRow as any);
+      }
+    } catch (err:any) {
+      console.error('getDishes fallback error', err?.message || err);
+    }
+    console.warn('getDishes: supabase client not configured and no local seed found. Returning empty list.');
+    return [];
+  }
   const { data, error } = await (supabase as any).from('dishes').select('*').order('name');
+  console.log('getDishes: supabase call resultLength=', (data as any)?.length, 'error=', error ? JSON.stringify(error) : null);
   if (error) {
     console.error('getDishes error', error);
     return [];
