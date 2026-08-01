@@ -50,6 +50,11 @@ export async function getDishes(): Promise<Dish[]> {
     console.error('getDishes error', error);
     return [];
   }
+  console.log({
+    data,
+    error,
+    count: data?.length,
+  });
   return (data || []).map(mapDishRow);
 }
 
