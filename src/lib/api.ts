@@ -17,6 +17,8 @@ export type Dish = {
 };
 
 function mapDishRow(row: any): Dish {
+  // Normalize image field: database may store image as image, image_url, or imageUrl
+  const image = row.image || row.image_url || row.imageUrl || null;
   return {
     id: row.id,
     code: row.code,
@@ -24,7 +26,7 @@ function mapDishRow(row: any): Dish {
     slug: row.slug,
     description: row.description,
     price: row.price,
-    image: row.image || null,
+    image: image,
     categoryId: row.category_id || null,
     ingredients: row.ingredients || null,
     servings: row.servings || null,
