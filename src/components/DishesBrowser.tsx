@@ -67,13 +67,13 @@ export default function DishesBrowser({ categories }: { categories: CategoryRow[
       {loading && dishes.length === 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="bg-white rounded-3xl p-4 shadow-lg">
+            <div key={i} className="rounded-[1.75rem] border border-brand-brown/10 bg-white/90 p-4 shadow-sm">
               <Skeleton lines={6} />
             </div>
           ))}
         </div>
       )}
-      {error && <div className="text-sm text-red-600">{error}</div>}
+      {error && <div className="rounded-2xl border border-brand-orange/20 bg-brand-orange/10 px-4 py-3 text-sm text-brand-brown">{error}</div>}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {dishes.map((d) => (
@@ -81,7 +81,11 @@ export default function DishesBrowser({ categories }: { categories: CategoryRow[
         ))}
       </div>
 
-      {!loading && dishes.length === 0 && <div className="text-sm text-gray-600">Nenhum prato encontrado</div>}
+      {!loading && dishes.length === 0 && (
+        <div className="mt-6 rounded-[1.5rem] border border-brand-brown/10 bg-white/80 p-6 text-sm text-brand-brown/80 shadow-sm">
+          Nenhum prato encontrado para esta busca.
+        </div>
+      )}
     </div>
   );
 }

@@ -27,7 +27,7 @@ export default function DishGallery({ images }: { images: string[] }) {
   }
 
   return (
-    <div className="w-full overflow-hidden rounded-md">
+    <div className="w-full overflow-hidden rounded-[2rem] border border-brand-brown/10 bg-white shadow-xl">
       <div
         ref={containerRef}
         onPointerDown={onPointerDown}
@@ -37,14 +37,19 @@ export default function DishGallery({ images }: { images: string[] }) {
         style={{ transform: `translateX(${-index * 100}%)` }}
       >
         {images.map((src, i) => (
-          <div key={i} className="relative w-full flex-shrink-0 h-64 bg-gray-100">
+          <div key={i} className="relative h-72 w-full flex-shrink-0 bg-brand-beige/70 md:h-80">
             <Image src={src} alt={`Imagem ${i + 1}`} fill sizes="100vw" className="object-cover" />
           </div>
         ))}
       </div>
-      <div className="flex items-center justify-center gap-2 mt-2">
+      <div className="flex items-center justify-center gap-2 p-4">
         {images.map((_, i) => (
-          <button key={i} aria-label={`Ir para imagem ${i + 1}`} onClick={() => setIndex(i)} className={`w-2 h-2 rounded-full ${i === index ? 'bg-brand-dark' : 'bg-gray-300'}`} />
+          <button
+            key={i}
+            aria-label={`Ir para imagem ${i + 1}`}
+            onClick={() => setIndex(i)}
+            className={`h-2.5 w-2.5 rounded-full ${i === index ? 'bg-brand-dark' : 'bg-brand-brown/40'}`}
+          />
         ))}
       </div>
     </div>

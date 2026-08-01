@@ -12,12 +12,13 @@ export default function CategoryList({
   onSelect?: (id: string | null) => void;
 }) {
   return (
-    <div className="overflow-x-auto py-2 -mx-4 px-4">
+    <div className="overflow-x-auto py-2 -mx-4 px-4 scroll-x">
       <div className="flex gap-3">
         <button
           type="button"
           onClick={() => onSelect?.(null)}
-              className={`min-w-[90px] rounded-full px-4 py-2 flex-shrink-0 ${!selected ? 'bg-brand-orange text-white' : 'bg-white'}`}
+          aria-pressed={!selected}
+          className={`min-w-[92px] rounded-full border px-4 py-3 flex-shrink-0 text-sm font-semibold transition ${!selected ? 'bg-brand-orange text-white border-brand-orange shadow-lg shadow-brand-orange/10' : 'bg-white text-brand-dark border-brand-dark/10 hover:bg-brand-beige'}`}
         >
           Todos
         </button>
@@ -25,11 +26,14 @@ export default function CategoryList({
           <button
             key={c.id}
             type="button"
+            aria-pressed={selected === c.id}
             onClick={() => onSelect?.(c.id)}
-                className={`min-w-[110px] bg-white rounded-full px-4 py-3 shadow-sm text-center flex-shrink-0 flex flex-col items-center gap-2 ${selected === c.id ? 'ring-2 ring-brand-orange' : ''}`}
+            className={`min-w-[120px] rounded-full border px-4 py-3 shadow-sm flex-shrink-0 text-left transition ${selected === c.id ? 'bg-brand-dark text-white border-brand-dark shadow-lg shadow-brand-dark/10' : 'bg-white text-brand-dark border-brand-dark/10 hover:bg-brand-beige'}`}
           >
-            <div className="w-12 h-12 rounded-full bg-brand-beige mx-auto flex items-center justify-center text-brand-brown">{c.name[0]}</div>
-                <div className="mt-1 text-sm font-medium">{c.name}</div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-brand-beige flex items-center justify-center text-sm font-semibold text-brand-brown shadow-inner">{c.name[0]}</div>
+              <span className="text-sm font-medium">{c.name}</span>
+            </div>
           </button>
         ))}
       </div>

@@ -2,33 +2,91 @@
 
 @import "tailwindcss";
 
-:root{
+@theme {
+  --color-brand-dark: #2A140F;
+  --color-brand-brown: #6B3A1A;
+  --color-brand-orange: #F58634;
+  --color-brand-beige: #F7F2EC;
+  --color-surface: #fff9f0;
+  --color-surface-strong: #fff5eb;
+  --font-display: 'Playfair Display', serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+:root {
+  color-scheme: light;
+  font-family: 'Inter', sans-serif;
   --brand-dark: #2A140F;
   --brand-brown: #6B3A1A;
   --brand-orange: #F58634;
   --brand-beige: #F7F2EC;
+  --surface: #fff9f0;
+  --surface-strong: #fff5eb;
+  --border: rgba(42, 20, 15, 0.12);
+  --text-muted: #6B3A1A;
+  --text-subtle: rgba(42, 20, 15, 0.72);
 }
 
-html, body, #__next{
-  height:100%;
+html {
+  scroll-behavior: smooth;
+}
+
+html, body, #__next {
+  min-height: 100%;
 }
 
 body {
+  margin: 0;
   background-color: var(--brand-beige);
+  background-image: radial-gradient(circle at top left, rgba(245, 134, 52, 0.16), transparent 24%),
+   radial-gradient(circle at 80% 15%, rgba(255, 255, 255, 0.9), transparent 16%),
+   radial-gradient(circle at 20% 70%, rgba(255, 255, 255, 0.55), transparent 18%);
   color: var(--brand-dark);
   font-family: 'Inter', sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Simple utility for horizontal snap scrolling */
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(245, 134, 52, 0.24);
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+::selection {
+  background: rgba(245, 134, 52, 0.23);
+  color: var(--brand-dark);
+}
+
 .scroll-x {
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
 }
 
-.scroll-x > *{
+.scroll-x > * {
   scroll-snap-align: start;
 }
 
-.header-logo{
+.header-logo {
   font-family: 'Playfair Display', serif;
 }

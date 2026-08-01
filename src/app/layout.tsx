@@ -2,18 +2,18 @@ import "../styles/globals.css";
 import React from 'react';
 import ClientProviders from '../components/ClientProviders';
 
-export const metadataBase = new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 export const metadata = {
   title: 'Comedoria da Tata',
   description: 'Comida caseira com carinho e entrega rápida diretamente da cozinha da Tata.',
-  metadataBase,
+  metadataBase: new URL(siteUrl),
   themeColor: '#2A140F',
   openGraph: {
     title: 'Comedoria da Tata',
     description: 'Comida caseira com carinho e entrega rápida diretamente da cozinha da Tata.',
     type: 'website',
-    url: metadataBase.href,
+    url: siteUrl,
     images: [
       {
         url: '/icons/icon-512.png',

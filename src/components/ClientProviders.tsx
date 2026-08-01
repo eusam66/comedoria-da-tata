@@ -1,7 +1,9 @@
 'use client';
 import React, { useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { CartProvider } from './CartContext';
-import CartDrawer from './CartDrawer';
+
+const CartDrawer = dynamic(() => import('./CartDrawer'), { ssr: false });
 
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
   useEffect(() => {
