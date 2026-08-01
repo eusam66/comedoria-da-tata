@@ -2,8 +2,10 @@
 import React from 'react';
 import { DishRow } from '../lib/types';
 import Link from 'next/link';
+import { useCart } from './CartContext';
 
 export default function DishCard({ dish }: { dish: DishRow }) {
+  const { addItem } = useCart();
   return (
     <article className="bg-white rounded-3xl p-4 shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300">
       <Link href={`/dishes/${dish.slug}`} className="block rounded-xl overflow-hidden bg-gradient-to-br from-brand-beige to-white">
@@ -24,7 +26,7 @@ export default function DishCard({ dish }: { dish: DishRow }) {
           <div className="text-brand-brown font-semibold text-base">R$ {Number(dish.price).toFixed(2)}</div>
           <div className="flex gap-2">
             <Link href={`/dishes/${dish.slug}`} className="bg-white border border-brand-brown text-brand-brown px-3 py-1 rounded-md" aria-label={`Ver ${dish.name}`} >Ver</Link>
-            <button type="button" aria-label={`Adicionar ${dish.name}`} className="bg-brand-orange text-white px-3 py-1 rounded-md">Adicionar</button>
+            <button type="button" aria-label={`Adicionar ${dish.name}`} onClick={() => addItem(dish, 1)} className="bg-brand-orange text-white px-3 py-1 rounded-md">Adicionar</button>
           </div>
         </div>
         <div className="mt-2 text-xs text-gray-500">Serve: {dish.servings ?? 1} pessoa(s)</div>

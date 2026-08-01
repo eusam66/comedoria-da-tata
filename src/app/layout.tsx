@@ -1,5 +1,6 @@
 import "../styles/globals.css";
 import React from 'react';
+import ClientProviders from '../components/ClientProviders';
 
 export const metadata = {
   title: 'Comedoria da Tata',
@@ -23,7 +24,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
-      <body>{children}</body>
+      <body>
+        <ClientProviders>{children}</ClientProviders>
+      </body>
     </html>
   );
 }
