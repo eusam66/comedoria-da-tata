@@ -26,18 +26,41 @@ export async function requireAdmin(req: Request) {
   if (!resp.ok) throw new Error('Unauthorized');
   const user = await resp.json();
   const userId = user?.id;
-  if (!userId) throw new Error('Unauthorized');
+  const userEmail = typeof user?.email === 'string' ? user.email.trim().toLowerCase() : '';
+  if (!userId || !userEmail) throw new Error('Unauthorized');
 
   // check admins table via service role
   const client = supabaseAdmin;
   if (!client) {
     throw new Error('Supabase admin client not configured');
   }
-  const { data, error } = await (client as any).from('admins').select('role,user_id').eq('user_id', userId).maybeSingle();
-  if (error) {
-    console.error('requireAdmin db error', error);
-    throw new Error('Unauthorized');
+
+  let adminRow: any = null;
+
+  const byEmail = await (client as any)
+    .from('admins')
+    .select('*')
+    .ilike('email', userEmail)
+    .limit(1)
+    .maybeSingle();
+
+  if (!byEmail.error && byEmail.data) {
+    adminRow = byEmail.data;
   }
-  if (!data) throw new Error('Forbidden');
-  return { id: userId, email: user?.email, role: data.role };
+
+  if (!adminRow) {
+    const byUserId = await (client as any)
+      .from('admins')
+      .select('*')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle();
+
+    if (!byUserId.error && byUserId.data) {
+      adminRow = byUserId.data;
+    }
+  }
+
+  if (!adminRow) throw new Error('Forbidden');
+  return { id: userId, email: user?.email, role: adminRow.role || 'admin' };
 }
