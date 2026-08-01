@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.categories (
 CREATE TABLE IF NOT EXISTS public.banners (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   title text,
-  image_url text,
+  image_url text UNIQUE,
   link text,
   alt text,
   position integer DEFAULT 0,
