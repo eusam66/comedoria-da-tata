@@ -1,9 +1,21 @@
 'use client';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { CartProvider } from './CartContext';
 import CartDrawer from './CartDrawer';
 
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      // register the service worker placed in /sw.js (generated during build)
+      navigator.serviceWorker.register('/sw.js').then((reg) => {
+        // registration succeeded
+        // console.debug('SW registered', reg);
+      }).catch((err) => {
+        // console.warn('SW registration failed', err);
+      });
+    }
+  }, []);
+
   return (
     <CartProvider>
       {children}
