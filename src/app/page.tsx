@@ -43,7 +43,7 @@ export default async function HomePage() {
     : { id: 'b-placeholder', title: 'Promoção do dia', subtitle: 'Frete grátis' };
 
   return (
-    <main className="min-h-screen flex flex-col bg-gradient-to-b from-brand-beige/20 to-white">
+    <main className="min-h-screen flex flex-col bg-[#f7efe4]">
       <Header open={open} avgTime={avgTime} />
 
       <section className="container mx-auto px-4 py-8">
@@ -80,8 +80,8 @@ export default async function HomePage() {
         </div>
 
         <Section title="Mais vendidos" className="mt-10">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            <div className="text-sm text-gray-600">Carregando...</div>
+          <div className="rounded-[1.5rem] border border-brand-brown/10 bg-white/80 p-6 text-sm text-brand-brown/80 shadow-sm">
+            Em breve, mais destaques da semana aparecerão por aqui.
           </div>
         </Section>
       </section>
