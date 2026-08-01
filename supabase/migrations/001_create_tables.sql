@@ -89,4 +89,12 @@ CREATE INDEX IF NOT EXISTS idx_orders_code ON public.orders(code);
 CREATE INDEX IF NOT EXISTS idx_categories_slug ON public.categories(slug);
 CREATE INDEX IF NOT EXISTS idx_dishes_slug ON public.dishes(slug);
 
+-- Garantia de UNIQUE constraints para seed ON CONFLICT
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_categories_slug ON public.categories(slug);
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_banners_image_url ON public.banners(image_url);
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_restaurant_settings_key ON public.restaurant_settings(key);
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_dishes_slug ON public.dishes(slug);
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_orders_code ON public.orders(code);
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_admins_email ON public.admins(email);
+
 -- Fim da migration
