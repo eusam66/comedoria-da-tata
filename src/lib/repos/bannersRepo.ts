@@ -11,7 +11,13 @@ export const bannersRepo = {
 
     const { data, error } = await supabase.from('banners').select('*').order('created_at', { ascending: false });
     if (error) throw error;
-    return (data as BannerRow[]) || mockBanners;
+    return ((data as BannerRow[]) || mockBanners)
+      .filter((banner) => banner.active !== false)
+      .sort((a, b) => Number(a.position || 0) - Number(b.position || 0))
+      .map((banner) => ({
+      ...banner,
+      image: banner.image || banner.image_url || null
+      }));
   },
   async get(id: string): Promise<BannerRow | null> {
     const { data, error } = await supabase.from('banners').select('*').eq('id', id).maybeSingle();

@@ -21,8 +21,11 @@ export default function Checkout({ onClose }: Props) {
   const itemLines = useMemo(
     () =>
       items.map((it) => {
-        const lineTotal = Number(it.dish.price) * it.qty;
-        return `${it.qty}x ${it.dish.name} - R$ ${Number(it.dish.price).toFixed(2)} = R$ ${lineTotal.toFixed(2)}${it.notes ? ` (obs: ${it.notes})` : ''}`;
+        const lineTotal = Number(it.unitPrice) * it.qty;
+        const addons = it.selectedAddons.length > 0
+          ? ` | adicionais: ${it.selectedAddons.map((addon) => `${addon.qty}x ${addon.name} (+R$ ${(addon.price * addon.qty).toFixed(2)})`).join(', ')}`
+          : '';
+        return `${it.qty}x ${it.dish.name} - R$ ${Number(it.unitPrice).toFixed(2)} = R$ ${lineTotal.toFixed(2)}${addons}${it.notes ? ` (obs: ${it.notes})` : ''}`;
       }),
     [items]
   );
@@ -214,8 +217,15 @@ export default function Checkout({ onClose }: Props) {
               <>
                 {items.map((it) => (
                   <div key={it.id} className="flex items-center justify-between gap-3">
-                    <div className="min-w-0 text-sm text-brand-dark">{it.qty} x {it.dish.name}{it.notes ? ` (${it.notes})` : ''}</div>
-                    <div className="font-semibold">R$ {(Number(it.dish.price) * it.qty).toFixed(2)}</div>
+                    <div className="min-w-0 text-sm text-brand-dark">
+                      {it.qty} x {it.dish.name}{it.notes ? ` (${it.notes})` : ''}
+                      {it.selectedAddons.length > 0 && (
+                        <div className="mt-1 text-xs text-brand-brown/80">
+                          + {it.selectedAddons.map((addon) => `${addon.qty}x ${addon.name}`).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                    <div className="font-semibold">R$ {(Number(it.unitPrice) * it.qty).toFixed(2)}</div>
                   </div>
                 ))}
                 <div className="flex items-center justify-between pt-3 text-sm text-brand-brown/70">

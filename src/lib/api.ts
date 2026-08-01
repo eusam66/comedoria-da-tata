@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { normalizeDishAddons } from './addons';
 
 export type Category = { id: string; name: string; image?: string };
 export type Dish = {
@@ -15,6 +16,15 @@ export type Dish = {
   servings?: number | null;
   popular?: boolean | null;
   isNew?: boolean | null;
+  isAvailable?: boolean | null;
+  position?: number | null;
+  addons?: Array<{
+    id: string;
+    name: string;
+    price: number;
+    maxQty: number;
+    required: boolean;
+  }>;
 };
 
 const mockCategories: Category[] = [
@@ -38,7 +48,11 @@ const mockDishes: Dish[] = [
     ingredients: ['couve', 'arroz', 'feijão', 'carne'],
     servings: 2,
     popular: true,
-    isNew: false
+    isNew: false,
+    addons: [
+      { id: 'addon-farofa', name: 'Farofa especial', price: 4, maxQty: 2, required: false },
+      { id: 'addon-molho', name: 'Molho da casa', price: 3, maxQty: 1, required: true }
+    ]
   },
   {
     id: 'dish-2',
@@ -53,7 +67,11 @@ const mockDishes: Dish[] = [
     ingredients: ['macarrão', 'molho de tomate', 'queijo', 'ervas'],
     servings: 2,
     popular: true,
-    isNew: true
+    isNew: true,
+    addons: [
+      { id: 'addon-queijo', name: 'Queijo extra', price: 5.5, maxQty: 3, required: false },
+      { id: 'addon-bacon', name: 'Bacon crocante', price: 7, maxQty: 2, required: false }
+    ]
   },
   {
     id: 'dish-3',
@@ -68,7 +86,8 @@ const mockDishes: Dish[] = [
     ingredients: ['banana', 'doce de leite', 'canela'],
     servings: 1,
     popular: false,
-    isNew: true
+    isNew: true,
+    addons: [{ id: 'addon-sorvete', name: 'Bola de sorvete', price: 6, maxQty: 2, required: false }]
   },
   {
     id: 'dish-4',
@@ -83,12 +102,35 @@ const mockDishes: Dish[] = [
     ingredients: ['laranja', 'hortelã', 'gelo'],
     servings: 1,
     popular: false,
-    isNew: false
+    isNew: false,
+    addons: []
   }
 ];
 
+function normalizeDishImage(imageValue: unknown): string | null {
+  if (typeof imageValue !== 'string') return null;
+
+  const image = imageValue.trim();
+  if (!image) return null;
+
+  if (/^(https?:)?\/\//i.test(image) || image.startsWith('data:')) {
+    return image;
+  }
+
+  if (image.startsWith('/')) {
+    return image;
+  }
+
+  if (image.startsWith('images/')) {
+    return `/${image}`;
+  }
+
+  return `/images/dishes/${image.replace(/^\/+/, '')}`;
+}
+
 function mapDishRow(row: any): Dish {
-  const image = row.image || row.image_url || row.imageUrl || null;
+  const image = normalizeDishImage(row.image || row.image_url || row.imageUrl || null);
+  const normalizedAddons = normalizeDishAddons(row.extras ?? row.addons ?? null);
   return {
     id: row.id,
     code: row.code,
@@ -100,9 +142,12 @@ function mapDishRow(row: any): Dish {
     categoryId: row.category_id || null,
     categoryName: row.category_name || row.categoryName || null,
     ingredients: row.ingredients || null,
-    servings: row.servings || null,
-    popular: row.popular || null,
-    isNew: row.is_new || null
+    servings: row.servings ?? row.serves ?? null,
+    popular: row.popular ?? row.is_featured ?? null,
+    isNew: row.is_new || null,
+    isAvailable: row.is_available ?? true,
+    position: row.position ?? 0,
+    addons: normalizedAddons
   };
 }
 
@@ -110,6 +155,7 @@ function filterDishes(dishes: Dish[], query?: { q?: string; categoryId?: string 
   const q = query?.q?.trim().toLowerCase() || '';
   const categoryId = query?.categoryId;
   return dishes.filter((dish) => {
+    const matchesAvailability = dish.isAvailable !== false;
     const matchesCategory = !categoryId || dish.categoryId === categoryId;
     const haystack = [
       dish.name,
@@ -122,7 +168,15 @@ function filterDishes(dishes: Dish[], query?: { q?: string; categoryId?: string 
       .toLowerCase();
 
     const matchesQuery = !q || haystack.includes(q);
-    return matchesCategory && matchesQuery;
+    return matchesAvailability && matchesCategory && matchesQuery;
+  });
+}
+
+function sortDishes(dishes: Dish[]): Dish[] {
+  return [...dishes].sort((a, b) => {
+    const positionDiff = Number(a.position || 0) - Number(b.position || 0);
+    if (positionDiff !== 0) return positionDiff;
+    return a.name.localeCompare(b.name);
   });
 }
 
@@ -134,7 +188,10 @@ export async function getCategories(): Promise<Category[]> {
     console.error('getCategories error', error);
     return mockCategories;
   }
-  return (data || []).map((row: any) => ({ id: row.id, name: row.name, image: row.image || undefined })) as Category[];
+  return (data || [])
+    .filter((row: any) => row.is_active !== false)
+    .sort((a: any, b: any) => Number(a.position || 0) - Number(b.position || 0) || String(a.name || '').localeCompare(String(b.name || '')))
+    .map((row: any) => ({ id: row.id, name: row.name, image: row.image || row.image_url || undefined })) as Category[];
 }
 
 export async function getDishes(): Promise<Dish[]> {
@@ -145,7 +202,7 @@ export async function getDishes(): Promise<Dish[]> {
     console.error('getDishes error', error);
     return mockDishes;
   }
-  return (data || []).map(mapDishRow);
+  return sortDishes((data || []).map(mapDishRow).filter((dish: Dish) => dish.isAvailable !== false));
 }
 
 export async function getDishBySlug(slug: string): Promise<Dish | undefined> {
@@ -159,7 +216,8 @@ export async function getDishBySlug(slug: string): Promise<Dish | undefined> {
     return mockDishes.find((dish) => dish.slug === slug);
   }
   if (!data) return mockDishes.find((dish) => dish.slug === slug);
-  return mapDishRow(data);
+  const mapped = mapDishRow(data);
+  return mapped.isAvailable === false ? undefined : mapped;
 }
 
 export async function searchDishes(query: { q?: string; categoryId?: string }): Promise<Dish[]> {
@@ -177,5 +235,5 @@ export async function searchDishes(query: { q?: string; categoryId?: string }): 
     console.error('searchDishes error', error);
     return filterDishes(mockDishes, query);
   }
-  return (data || []).map(mapDishRow);
+  return sortDishes(filterDishes((data || []).map(mapDishRow), query));
 }

@@ -1,12 +1,22 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import DishGallery from './DishGallery';
 import { useCart } from './CartContext';
+import { DishAddon, normalizeDishAddons, SelectedAddon, selectedAddonsTotal } from '../lib/addons';
 
 export default function DishDetailClient({ dish, onAdd }: { dish: any; onAdd?: (payload: any) => void }) {
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState('');
+  const [touchedAddons, setTouchedAddons] = useState(false);
   const { addItem } = useCart();
+  const addons = useMemo<DishAddon[]>(() => normalizeDishAddons(dish.addons ?? dish.extras ?? null), [dish.addons, dish.extras]);
+  const [addonQtyMap, setAddonQtyMap] = useState<Record<string, number>>(
+    () =>
+      addons.reduce(
+        (acc, addon) => ({ ...acc, [addon.id]: addon.required ? 1 : 0 }),
+        {}
+      )
+  );
 
   function dec() {
     setQty((q) => Math.max(1, q - 1));
@@ -15,14 +25,48 @@ export default function DishDetailClient({ dish, onAdd }: { dish: any; onAdd?: (
     setQty((q) => q + 1);
   }
 
+  const selectedAddons = useMemo<SelectedAddon[]>(
+    () =>
+      addons
+        .map((addon) => ({
+          addonId: addon.id,
+          name: addon.name,
+          price: addon.price,
+          qty: Math.max(0, addonQtyMap[addon.id] || 0)
+        }))
+        .filter((addon) => addon.qty > 0),
+    [addons, addonQtyMap]
+  );
+
+  const requiredMissing = useMemo(
+    () => addons.filter((addon) => addon.required && (addonQtyMap[addon.id] || 0) < 1),
+    [addons, addonQtyMap]
+  );
+
+  const addonsUnitTotal = useMemo(() => selectedAddonsTotal(selectedAddons), [selectedAddons]);
+  const lineTotal = (Number(dish.price) + addonsUnitTotal) * qty;
+
+  function changeAddonQty(addonId: string, nextQty: number, maxQty: number) {
+    const safeQty = Math.max(0, Math.min(maxQty, nextQty));
+    setTouchedAddons(true);
+    setAddonQtyMap((current) => ({
+      ...current,
+      [addonId]: safeQty
+    }));
+  }
+
   function handleAdd() {
-    const payload = { dishId: dish.id, qty, notes };
+    if (requiredMissing.length > 0) {
+      setTouchedAddons(true);
+      alert('Selecione os adicionais obrigatórios antes de adicionar ao carrinho.');
+      return;
+    }
+
+    const payload = { dishId: dish.id, qty, notes, selectedAddons };
     if (onAdd) onAdd(payload);
     else {
       try {
-        addItem(dish, qty, notes);
-        // visual feedback
-        // small toast could be added later; for now simple alert
+        addItem(dish, qty, { notes, selectedAddons });
         alert(`${dish.name} adicionado ao carrinho (${qty})`);
       } catch (e) {
         console.error('add to cart failed', e);
@@ -68,6 +112,52 @@ export default function DishDetailClient({ dish, onAdd }: { dish: any; onAdd?: (
             </ul>
           </div>
 
+          {addons.length > 0 && (
+            <div className="mt-6">
+              <h4 className="font-semibold mb-2">Adicionais</h4>
+              <div className="space-y-3">
+                {addons.map((addon) => {
+                  const addonQty = addonQtyMap[addon.id] || 0;
+                  return (
+                    <div key={addon.id} className="rounded-[1.25rem] border border-brand-brown/10 bg-white/70 px-4 py-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="font-semibold text-brand-dark">{addon.name}</div>
+                          <div className="text-xs text-brand-brown/70">
+                            R$ {addon.price.toFixed(2)} • máx. {addon.maxQty}
+                            {addon.required ? ' • obrigatório' : ' • opcional'}
+                          </div>
+                        </div>
+                        <div className="flex items-center overflow-hidden rounded-full border border-brand-brown/10 bg-brand-beige/50">
+                          <button
+                            aria-label={`Diminuir ${addon.name}`}
+                            onClick={() => changeAddonQty(addon.id, addonQty - 1, addon.maxQty)}
+                            className="px-3 py-2 bg-white text-lg text-brand-dark transition hover:bg-brand-beige"
+                          >
+                            −
+                          </button>
+                          <div className="min-w-[2.5rem] px-3 text-center text-sm font-semibold text-brand-dark">{addonQty}</div>
+                          <button
+                            aria-label={`Aumentar ${addon.name}`}
+                            onClick={() => changeAddonQty(addon.id, addonQty + 1, addon.maxQty)}
+                            className="px-3 py-2 bg-white text-lg text-brand-dark transition hover:bg-brand-beige"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {touchedAddons && requiredMissing.length > 0 && (
+                <p className="mt-2 text-sm text-red-600">
+                  Selecione os adicionais obrigatórios: {requiredMissing.map((addon) => addon.name).join(', ')}.
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="mt-6 flex items-center gap-4">
             <div className="flex items-center overflow-hidden rounded-full border border-brand-brown/10 bg-brand-beige/50">
               <button aria-label="Diminuir" onClick={dec} className="px-3 py-2 bg-white text-xl text-brand-dark transition hover:bg-brand-beige">−</button>
@@ -88,7 +178,7 @@ export default function DishDetailClient({ dish, onAdd }: { dish: any; onAdd?: (
         <div className="flex items-center justify-between gap-4 rounded-full border border-brand-brown/10 bg-white/95 p-3 shadow-[0_20px_60px_-30px_rgba(42,20,15,0.45)] backdrop-blur">
           <div className="flex items-center gap-3">
             <div className="text-sm text-brand-brown/80">Total:</div>
-            <div className="text-lg font-bold text-brand-dark">R$ {(Number(dish.price) * qty).toFixed(2)}</div>
+            <div className="text-lg font-bold text-brand-dark">R$ {lineTotal.toFixed(2)}</div>
           </div>
           <div>
             <button onClick={handleAdd} className="rounded-full bg-brand-orange px-6 py-3 font-semibold text-white shadow-lg shadow-brand-orange/20 transition hover:bg-brand-dark">Adicionar ao carrinho</button>

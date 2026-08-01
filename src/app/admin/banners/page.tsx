@@ -1,88 +1,219 @@
 'use client';
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import AdminLayout from '../layout';
 import { compressImage } from '../../../lib/imageCompress';
 import { toastSuccess, toastError } from '../../../lib/toast';
 
-export default function AdminBannersPage(){
+type BannerForm = {
+  title: string;
+  subtitle: string;
+  link: string;
+  alt: string;
+  position: number;
+  active: boolean;
+};
 
-  const [items,setItems]=useState<any[]>([]);
-  const [title,setTitle]=useState('');
-  const [subtitle,setSubtitle]=useState('');
-  const [error,setError]=useState<string|null>(null);
+const initialForm: BannerForm = {
+  title: '',
+  subtitle: '',
+  link: '/',
+  alt: '',
+  position: 0,
+  active: true
+};
 
-  useEffect(()=>{ fetch('/api/admin/banners').then(r=>r.json()).then(setItems).catch(e=>setError(e.message)); },[]);
-  const [file, setFile] = React.useState<File | null>(null);
-  const [step, setStep] = React.useState<number>(1);
+export default function AdminBannersPage() {
+  const [items, setItems] = useState<any[]>([]);
+  const [form, setForm] = useState<BannerForm>(initialForm);
+  const [file, setFile] = useState<File | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
+  const [removeCurrentImage, setRemoveCurrentImage] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/admin/banners')
+      .then((r) => r.json())
+      .then((json) => setItems(json || []))
+      .catch((e) => setError(e.message || 'Erro ao carregar promoções'));
+  }, []);
 
   async function uploadIfNeeded(): Promise<string | null> {
     if (!file) return null;
-    try{
-      const compressed = await compressImage(file, 1400, 0.78);
-      const fd = new FormData();
-      fd.append('file', compressed);
-      fd.append('bucket', 'banners');
-      fd.append('path', `banners/${Date.now()}_${compressed.name}`);
-      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    const compressed = await compressImage(file, 1600, 0.8);
+    const fd = new FormData();
+    fd.append('file', compressed);
+    fd.append('bucket', 'banners');
+    fd.append('path', `banners/${Date.now()}_${compressed.name}`);
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json?.error || 'Falha no upload');
+    return json.publicUrl;
+  }
+
+  function resetForm() {
+    setForm(initialForm);
+    setFile(null);
+    setEditingId(null);
+    setError(null);
+    setCurrentImageUrl(null);
+    setRemoveCurrentImage(false);
+  }
+
+  async function submit() {
+    setError(null);
+    try {
+      const imageUrl = await uploadIfNeeded();
+      const payload: any = { ...form };
+      if (imageUrl) payload.image = imageUrl;
+      if (!imageUrl && removeCurrentImage && editingId) payload.image = null;
+      const res = await fetch(editingId ? `/api/admin/banners/${editingId}` : '/api/admin/banners', {
+        method: editingId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Upload failed');
-      return json.publicUrl;
-    }catch(err:any){
-      throw new Error(err?.message || 'Upload/compress failed');
+      if (!res.ok) throw new Error(json?.error || 'Erro ao salvar promoção');
+
+      if (editingId) {
+        setItems((current) => current.map((item) => (item.id === editingId ? json : item)));
+        toastSuccess('Promoção atualizada');
+      } else {
+        setItems((current) => [json, ...current]);
+        toastSuccess('Promoção criada');
+      }
+      resetForm();
+    } catch (e: any) {
+      setError(e.message || 'Erro ao salvar promoção');
+      toastError(e?.message || 'Erro ao salvar promoção');
     }
   }
 
-  async function create(){
-    setError(null);
-    try{
-      const imageUrl = await uploadIfNeeded();
-      const res = await fetch('/api/admin/banners', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, subtitle, image: imageUrl }) });
-      const json = await res.json();
-      if(!res.ok) throw new Error(json?.error || 'Erro');
-      setItems(s=>[json,...s]); setTitle(''); setSubtitle(''); setFile(null); setStep(1);
-    } catch(e:any){ setError(e.message); }
+  function startEdit(banner: any) {
+    setEditingId(banner.id);
+    setForm({
+      title: banner.title || '',
+      subtitle: banner.subtitle || '',
+      link: banner.link || '/',
+      alt: banner.alt || '',
+      position: Number(banner.position || 0),
+      active: banner.active ?? true
+    });
+    setFile(null);
+    setCurrentImageUrl(banner.image_url || null);
+    setRemoveCurrentImage(false);
   }
-  async function remove(id:string){
-    try{
-      await fetch(`/api/admin/banners/${id}`, { method: 'DELETE' });
-      setItems(s=>s.filter(x=>x.id!==id));
-    } catch(e:any){ setError(e.message); }
+
+  async function remove(id: string) {
+    if (!confirm('Confirma exclusão desta promoção?')) return;
+    try {
+      const res = await fetch(`/api/admin/banners/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Erro ao excluir promoção');
+      setItems((current) => current.filter((item) => item.id !== id));
+      toastSuccess('Promoção excluída');
+    } catch (e: any) {
+      setError(e.message || 'Erro ao excluir promoção');
+      toastError(e?.message || 'Erro ao excluir promoção');
+    }
   }
 
   return (
     <AdminLayout>
-      <h1 className="text-2xl font-display mb-4">CRUD de Banners</h1>
-      <div className="bg-white p-4 rounded shadow mb-6">
-        {/* Mobile-first stepper */}
-        {step === 1 && (
-          <div>
-            <input aria-label="Título do banner" value={title} onChange={(e)=>setTitle(e.target.value)} placeholder="Título" className="border p-3 rounded mb-2 w-full text-lg" />
-            <input aria-label="Subtítulo do banner" value={subtitle} onChange={(e)=>setSubtitle(e.target.value)} placeholder="Subtítulo" className="border p-3 rounded mb-2 w-full" />
-            <div className="flex gap-2">
-              <button type="button" onClick={()=>setStep(2)} className="flex-1 bg-brand-orange text-white py-3 rounded">Próximo</button>
-            </div>
+      <h1 className="mb-4 text-2xl font-display">Promoções e banners</h1>
+
+      <div className="mb-6 rounded-2xl bg-white p-4 shadow">
+        <h2 className="mb-4 text-lg font-semibold">{editingId ? 'Editar promoção' : 'Nova promoção'}</h2>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="space-y-3">
+            <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Título" className="w-full rounded border p-3" />
+            <input value={form.subtitle} onChange={(e) => setForm({ ...form, subtitle: e.target.value })} placeholder="Subtítulo" className="w-full rounded border p-3" />
+            <input value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} placeholder="Link de destino" className="w-full rounded border p-3" />
+            <input value={form.alt} onChange={(e) => setForm({ ...form, alt: e.target.value })} placeholder="Texto alternativo da imagem" className="w-full rounded border p-3" />
           </div>
-        )}
-        {step === 2 && (
-          <div>
-            <label className="block mb-2 text-sm">Imagem (câmera ou galeria)</label>
-            <input aria-label="Imagem do banner" type="file" accept="image/*" capture="environment" onChange={(e)=>setFile(e.target.files?.[0]||null)} className="w-full mb-3" />
-            <div className="flex gap-2">
-              <button type="button" onClick={()=>setStep(1)} className="flex-1 border py-3 rounded">Voltar</button>
-                  <button type="button" onClick={async ()=>{ try{ await create(); toastSuccess('Banner criado'); }catch(e:any){ toastError(e?.message||'Erro'); } }} className="flex-1 bg-brand-dark text-white py-3 rounded">Criar Banner</button>
-            </div>
+          <div className="space-y-3">
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={form.position}
+              onChange={(e) => setForm({ ...form, position: Number(e.target.value || 0) })}
+              placeholder="Ordem de exibição"
+              className="w-full rounded border p-3"
+            />
+            <label className="flex items-center gap-2 rounded border p-3">
+              <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
+              <span>Promoção ativa na Home</span>
+            </label>
+            <label className="block rounded border p-3">
+              <span className="mb-2 block text-sm font-medium">Imagem do banner</span>
+              <input type="file" accept="image/*" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setRemoveCurrentImage(false); }} className="w-full" />
+            </label>
+            {(currentImageUrl || file) && (
+              <div className="rounded border p-3">
+                <div className="mb-2 text-sm font-medium">Imagem atual</div>
+                {currentImageUrl && !file && (
+                  <Image
+                    src={currentImageUrl}
+                    alt={form.alt || form.title || 'Banner'}
+                    width={640}
+                    height={256}
+                    className="h-32 w-full rounded object-cover"
+                    unoptimized
+                  />
+                )}
+                {file && <div className="text-sm text-gray-600">Nova imagem: {file.name}</div>}
+                {editingId && currentImageUrl && (
+                  <button
+                    type="button"
+                    onClick={() => { setCurrentImageUrl(null); setFile(null); setRemoveCurrentImage(true); }}
+                    className="mt-3 rounded border border-red-200 px-3 py-2 text-sm text-red-600"
+                  >
+                    Excluir foto atual
+                  </button>
+                )}
+              </div>
+            )}
           </div>
-        )}
-        {error && <div className="text-red-600 mt-2">{error}</div>}
+        </div>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <button type="button" onClick={submit} className="rounded bg-brand-dark px-4 py-3 text-white">
+            {editingId ? 'Salvar promoção' : 'Criar promoção'}
+          </button>
+          {editingId && (
+            <button type="button" onClick={resetForm} className="rounded border px-4 py-3">
+              Cancelar
+            </button>
+          )}
+        </div>
+        {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
       </div>
-      <div className="space-y-2">
-        {items.map(b=> (
-          <div key={b.id} className="bg-white p-3 rounded shadow flex justify-between">
-            <div>
-              <div className="font-medium">{b.title}</div>
-              <div className="text-sm text-gray-600">{b.subtitle}</div>
+
+      <div className="space-y-3">
+        {items.map((banner) => (
+          <div key={banner.id} className="rounded-2xl bg-white p-4 shadow">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-lg font-semibold">{banner.title}</h3>
+                  <span className={`rounded-full px-2 py-1 text-xs ${banner.active === false ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                    {banner.active === false ? 'Inativa' : 'Ativa'}
+                  </span>
+                </div>
+                <div className="text-sm text-gray-600">{banner.subtitle || 'Sem subtítulo'}</div>
+                <div className="text-sm text-gray-600">Link: {banner.link || '/'}</div>
+                <div className="text-sm text-gray-600">Ordem: {banner.position ?? 0}</div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <button type="button" onClick={() => startEdit(banner)} className="rounded border px-4 py-2">
+                  Editar
+                </button>
+                <button type="button" onClick={() => remove(banner.id)} className="rounded bg-red-500 px-4 py-2 text-white">
+                  Excluir
+                </button>
+              </div>
             </div>
-                <button type="button" className="px-3 py-1 bg-red-500 text-white rounded" onClick={async ()=>{ if(!confirm('Confirma exclusão deste banner?')) return; try{ await remove(b.id); toastSuccess('Banner excluído'); }catch(e:any){ toastError(e?.message||'Erro ao excluir'); } }}>Excluir</button>
           </div>
         ))}
       </div>

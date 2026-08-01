@@ -4,6 +4,11 @@ export type CategoryRow = {
   id: string;
   name: string;
   image?: string | null;
+  image_url?: string | null;
+  slug?: string | null;
+  description?: string | null;
+  position?: number | null;
+  is_active?: boolean | null;
   created_at?: string | null;
 };
 
@@ -15,11 +20,24 @@ export type DishRow = {
   description?: string | null;
   price: number;
   image?: string | null;
+  image_url?: string | null;
   category_id?: string | null;
   ingredients?: string[] | null;
   servings?: number | null;
+  serves?: number | null;
   popular?: boolean | null;
+  is_featured?: boolean | null;
   is_new?: boolean | null;
+  is_available?: boolean | null;
+  position?: number | null;
+  extras?: any | null;
+  addons?: Array<{
+    id: string;
+    name: string;
+    price: number;
+    maxQty: number;
+    required: boolean;
+  }> | null;
   created_at?: string | null;
 };
 
@@ -28,6 +46,11 @@ export type BannerRow = {
   title?: string | null;
   subtitle?: string | null;
   image?: string | null;
+  image_url?: string | null;
+  link?: string | null;
+  alt?: string | null;
+  position?: number | null;
+  active?: boolean | null;
   created_at?: string | null;
 };
 

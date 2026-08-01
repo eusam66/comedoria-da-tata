@@ -45,10 +45,23 @@ export default function CartDrawer() {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="font-semibold text-brand-dark">{it.dish.name}</div>
-                          <div className="text-sm text-brand-brown/70">R$ {Number(it.dish.price).toFixed(2)}</div>
+                          <div className="text-sm text-brand-brown/70">R$ {Number(it.unitPrice).toFixed(2)}</div>
                         </div>
-                        <div className="text-right text-sm font-semibold text-brand-dark">R$ {(Number(it.dish.price) * it.qty).toFixed(2)}</div>
+                        <div className="text-right text-sm font-semibold text-brand-dark">R$ {(Number(it.unitPrice) * it.qty).toFixed(2)}</div>
                       </div>
+                      {it.selectedAddons.length > 0 && (
+                        <div className="mt-2 rounded-2xl bg-brand-beige/60 px-3 py-2 text-xs text-brand-brown">
+                          <div className="font-semibold text-brand-dark">Adicionais</div>
+                          <ul className="mt-1 space-y-1">
+                            {it.selectedAddons.map((addon) => (
+                              <li key={addon.addonId} className="flex items-center justify-between gap-2">
+                                <span>{addon.qty}x {addon.name}</span>
+                                <span>R$ {(addon.price * addon.qty).toFixed(2)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
 
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <button onClick={() => updateQty(it.id, it.qty - 1)} className="rounded-full border border-brand-brown/15 px-3 py-1 text-sm text-brand-dark transition hover:bg-brand-beige">−</button>

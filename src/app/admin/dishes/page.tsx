@@ -1,16 +1,19 @@
 ﻿'use client';
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import AdminLayout from '../layout';
 import { slugify } from '../../../lib/slug';
 import { compressImage } from '../../../lib/imageCompress';
 import { toastSuccess, toastError } from '../../../lib/toast';
 import Skeleton from '../../../components/Skeleton';
+import { DishAddon, normalizeDishAddons, serializeDishAddons } from '../../../lib/addons';
 
 export default function AdminDishesPage() {
   const [items, setItems] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<any>({
+    code: '',
     name: '',
     price: 0,
     categoryId: '',
@@ -18,10 +21,15 @@ export default function AdminDishesPage() {
     description: '',
     ingredients: '',
     servings: 1,
+    position: 0,
+    isAvailable: true,
     popular: false,
-    isNew: false
+    isNew: false,
+    addons: [] as DishAddon[]
   });
   const [file, setFile] = useState<File | null>(null);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
+  const [removeCurrentImage, setRemoveCurrentImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -57,6 +65,7 @@ export default function AdminDishesPage() {
 
   function resetForm() {
     setForm({
+      code: '',
       name: '',
       price: 0,
       categoryId: '',
@@ -64,43 +73,82 @@ export default function AdminDishesPage() {
       description: '',
       ingredients: '',
       servings: 1,
+      position: 0,
+      isAvailable: true,
       popular: false,
-      isNew: false
+      isNew: false,
+      addons: [] as DishAddon[]
     });
     setFile(null);
+    setCurrentImageUrl(null);
+    setRemoveCurrentImage(false);
     setEditingId(null);
     setError(null);
   }
 
   function startEdit(dish: any) {
+    const addons = normalizeDishAddons(dish?.extras ?? dish?.addons ?? null);
     setEditingId(dish.id);
     setForm({
+      code: dish.code || '',
       name: dish.name || '',
       price: Number(dish.price) || 0,
       categoryId: dish.category_id || '',
       slug: dish.slug || '',
       description: dish.description || '',
       ingredients: Array.isArray(dish.ingredients) ? dish.ingredients.join(', ') : dish.ingredients || '',
-      servings: dish.servings || 1,
-      popular: dish.popular || false,
-      isNew: dish.is_new || false
+      servings: dish.servings || dish.serves || 1,
+      position: Number(dish.position || 0),
+      isAvailable: dish.is_available ?? true,
+      popular: dish.popular ?? dish.is_featured ?? false,
+      isNew: dish.is_new || false,
+      addons
     });
     setFile(null);
+    setCurrentImageUrl(dish.image_url || dish.image || null);
+    setRemoveCurrentImage(false);
+  }
+
+  function addAddonRow() {
+    setForm((current: any) => ({
+      ...current,
+      addons: [
+        ...(current.addons || []),
+        { id: `addon-${Date.now()}`, name: '', price: 0, maxQty: 1, required: false }
+      ]
+    }));
+  }
+
+  function updateAddonRow(addonId: string, patch: Partial<DishAddon>) {
+    setForm((current: any) => ({
+      ...current,
+      addons: (current.addons || []).map((addon: DishAddon) => (addon.id === addonId ? { ...addon, ...patch } : addon))
+    }));
+  }
+
+  function removeAddonRow(addonId: string) {
+    setForm((current: any) => ({
+      ...current,
+      addons: (current.addons || []).filter((addon: DishAddon) => addon.id !== addonId)
+    }));
   }
 
   async function create() {
     setError(null);
     try {
       const imageUrl = await uploadIfNeeded();
-      const payload = {
+      const normalizedAddons = normalizeDishAddons(form.addons || []);
+      const payload: any = {
         ...form,
+        code: form.code || undefined,
         slug: form.slug || slugify(form.name),
-        image: imageUrl,
         ingredients: form.ingredients ? form.ingredients.split(',').map((part: string) => part.trim()).filter(Boolean) : null,
         popular: form.popular,
         isNew: form.isNew,
-        categoryId: form.categoryId || null
+        categoryId: form.categoryId || null,
+        extras: normalizedAddons.length > 0 ? serializeDishAddons(normalizedAddons) : null
       };
+      if (imageUrl) payload.image = imageUrl;
       const res = await fetch('/api/admin/dishes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -122,15 +170,19 @@ export default function AdminDishesPage() {
     setError(null);
     try {
       const imageUrl = await uploadIfNeeded();
+      const normalizedAddons = normalizeDishAddons(form.addons || []);
       const payload: any = {
         ...form,
+        code: form.code || undefined,
         slug: form.slug || slugify(form.name),
         ingredients: form.ingredients ? form.ingredients.split(',').map((part: string) => part.trim()).filter(Boolean) : null,
         popular: form.popular,
         isNew: form.isNew,
-        categoryId: form.categoryId || null
+        categoryId: form.categoryId || null,
+        extras: normalizedAddons.length > 0 ? serializeDishAddons(normalizedAddons) : null
       };
       if (imageUrl) payload.image = imageUrl;
+      if (!imageUrl && removeCurrentImage) payload.image = null;
       const res = await fetch(`/api/admin/dishes/${editingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -168,6 +220,13 @@ export default function AdminDishesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-3">
             <input
+              aria-label="Código do prato"
+              value={form.code}
+              onChange={(e) => setForm({ ...form, code: e.target.value })}
+              placeholder="Código do prato"
+              className="border p-3 rounded w-full"
+            />
+            <input
               aria-label="Nome do prato"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -183,6 +242,16 @@ export default function AdminDishesPage() {
                 value={form.price}
                 onChange={(e) => setForm({ ...form, price: parseFloat(e.target.value || '0') })}
                 placeholder="Preço"
+                className="border p-3 rounded w-full"
+              />
+              <input
+                aria-label="Ordem de exibição do prato"
+                type="number"
+                min="0"
+                step="1"
+                value={form.position}
+                onChange={(e) => setForm({ ...form, position: parseInt(e.target.value || '0', 10) })}
+                placeholder="Ordem"
                 className="border p-3 rounded w-full"
               />
               <input
@@ -226,6 +295,10 @@ export default function AdminDishesPage() {
                 <input type="checkbox" checked={form.popular} onChange={(e) => setForm({ ...form, popular: e.target.checked })} />
                 <span>Mais pedido</span>
               </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={form.isAvailable} onChange={(e) => setForm({ ...form, isAvailable: e.target.checked })} />
+                <span>Disponível na loja</span>
+              </label>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <select
@@ -240,8 +313,89 @@ export default function AdminDishesPage() {
               </select>
               <label className="block">
                 <span className="block text-sm mb-1">Imagem do prato</span>
-                <input type="file" accept="image/*" capture="environment" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="w-full" />
+                <input type="file" accept="image/*" capture="environment" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setRemoveCurrentImage(false); }} className="w-full" />
               </label>
+            </div>
+            {(currentImageUrl || file) && (
+              <div className="rounded-lg border p-3">
+                <div className="mb-2 text-sm font-semibold">Imagem atual</div>
+                {currentImageUrl && !file && (
+                  <Image
+                    src={currentImageUrl}
+                    alt={form.name || 'Prato'}
+                    width={640}
+                    height={320}
+                    className="h-40 w-full rounded object-cover"
+                    unoptimized
+                  />
+                )}
+                {file && <div className="text-sm text-gray-600">{file.name}</div>}
+                {editingId && currentImageUrl && (
+                  <button
+                    type="button"
+                    onClick={() => { setCurrentImageUrl(null); setFile(null); setRemoveCurrentImage(true); }}
+                    className="mt-3 rounded border border-red-200 px-3 py-2 text-sm text-red-600"
+                  >
+                    Excluir foto atual
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="rounded-lg border p-3">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold">Adicionais do prato</span>
+                <button type="button" onClick={addAddonRow} className="rounded border px-3 py-1 text-sm">+ Adicional</button>
+              </div>
+              <div className="space-y-3">
+                {(form.addons || []).length === 0 && (
+                  <p className="text-sm text-gray-600">Nenhum adicional cadastrado para este prato.</p>
+                )}
+                {(form.addons || []).map((addon: DishAddon) => (
+                  <div key={addon.id} className="rounded border p-3">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-12">
+                      <input
+                        value={addon.name}
+                        onChange={(e) => updateAddonRow(addon.id, { name: e.target.value })}
+                        placeholder="Nome do adicional"
+                        className="border p-2 rounded sm:col-span-4"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={addon.price}
+                        onChange={(e) => updateAddonRow(addon.id, { price: Number(e.target.value || 0) })}
+                        placeholder="Preço"
+                        className="border p-2 rounded sm:col-span-3"
+                      />
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={addon.maxQty}
+                        onChange={(e) => updateAddonRow(addon.id, { maxQty: Math.max(1, parseInt(e.target.value || '1', 10)) })}
+                        placeholder="Qtd máx"
+                        className="border p-2 rounded sm:col-span-2"
+                      />
+                      <label className="flex items-center gap-2 sm:col-span-2">
+                        <input
+                          type="checkbox"
+                          checked={addon.required}
+                          onChange={(e) => updateAddonRow(addon.id, { required: e.target.checked })}
+                        />
+                        <span className="text-sm">Obrigatório</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => removeAddonRow(addon.id)}
+                        className="rounded border px-2 py-2 text-sm text-red-600 sm:col-span-1"
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="flex gap-2">
               <button type="button" onClick={editingId ? update : create} className="flex-1 bg-brand-dark text-white py-3 rounded">
@@ -284,8 +438,10 @@ export default function AdminDishesPage() {
                 {d.is_new && <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">Novo</span>}
                 {d.popular && <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs">Mais pedido</span>}
               </div>
-              <div className="text-sm text-gray-600 mt-1">R$ {Number(d.price || 0).toFixed(2)} • Serve {d.servings || 1} pessoa(s)</div>
+              <div className="text-sm text-gray-600 mt-1">R$ {Number(d.price || 0).toFixed(2)} • Serve {d.servings || d.serves || 1} pessoa(s)</div>
+              <div className="text-sm text-gray-600 mt-1">Código: {d.code || '—'} • Ordem: {d.position ?? 0} • {d.is_available === false ? 'Indisponível' : 'Disponível'}</div>
               <div className="text-sm text-gray-600 mt-1">Categoria: {categories.find((c) => c.id === d.category_id)?.name || 'Sem categoria'}</div>
+              <div className="text-sm text-gray-600 mt-1">Adicionais: {normalizeDishAddons(d.extras ?? d.addons ?? null).length}</div>
               <div className="text-sm text-gray-600 mt-2 line-clamp-2">{d.description}</div>
             </div>
             <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">

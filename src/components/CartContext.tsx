@@ -1,17 +1,20 @@
 'use client';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { DishRow } from '../lib/types';
+import { SelectedAddon, selectedAddonsKey, selectedAddonsTotal } from '../lib/addons';
 
 export type CartItem = {
-  id: string; // dish id
+  id: string;
   dish: DishRow;
   qty: number;
   notes?: string;
+  selectedAddons: SelectedAddon[];
+  unitPrice: number;
 };
 
 type CartContextValue = {
   items: CartItem[];
-  addItem: (dish: DishRow, qty?: number, notes?: string) => void;
+  addItem: (dish: DishRow, qty?: number, options?: string | { notes?: string; selectedAddons?: SelectedAddon[] }) => void;
   updateQty: (id: string, qty: number) => void;
   updateNotes: (id: string, notes: string) => void;
   removeItem: (id: string) => void;
@@ -37,7 +40,21 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        setItems(JSON.parse(raw));
+        const parsed = JSON.parse(raw) as CartItem[];
+        setItems(
+          (parsed || []).map((item) => {
+            const normalizedAddons = Array.isArray(item.selectedAddons)
+              ? item.selectedAddons.filter((addon) => addon.qty > 0)
+              : [];
+            const basePrice = Number(item.dish?.price || 0);
+            const unitPrice = basePrice + selectedAddonsTotal(normalizedAddons);
+            return {
+              ...item,
+              selectedAddons: normalizedAddons,
+              unitPrice
+            };
+          })
+        );
       }
     } catch (e) {
       console.warn('Failed to load cart from localStorage', e);
@@ -52,13 +69,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [items]);
 
-  function addItem(dish: DishRow, qty = 1, notes?: string) {
+  function addItem(dish: DishRow, qty = 1, options?: string | { notes?: string; selectedAddons?: SelectedAddon[] }) {
+    const notes = typeof options === 'string' ? options : options?.notes;
+    const selectedAddons = typeof options === 'string' ? [] : (options?.selectedAddons || []).filter((addon) => addon.qty > 0);
+    const addonKey = selectedAddonsKey(selectedAddons);
+    const notesKey = (notes || '').trim();
+    const cartKey = `${dish.id}|${addonKey}|${notesKey}`;
+    const unitPrice = Number(dish.price || 0) + selectedAddonsTotal(selectedAddons);
+
     setItems((prev) => {
-      const existing = prev.find((p) => p.id === dish.id);
+      const existing = prev.find((p) => p.id === cartKey);
       if (existing) {
-        return prev.map((p) => (p.id === dish.id ? { ...p, qty: p.qty + qty, notes: notes ?? p.notes } : p));
+        return prev.map((p) => (p.id === cartKey ? { ...p, qty: p.qty + qty, notes: notes ?? p.notes } : p));
       }
-      const newItem: CartItem = { id: dish.id, dish, qty, notes };
+      const newItem: CartItem = { id: cartKey, dish, qty, notes, selectedAddons, unitPrice };
       return [...prev, newItem];
     });
     setIsOpen(true);
@@ -80,7 +104,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems([]);
   }
 
-  const subtotal = useMemo(() => items.reduce((s, it) => s + Number(it.dish.price || 0) * it.qty, 0), [items]);
+  const subtotal = useMemo(() => items.reduce((s, it) => s + Number(it.unitPrice || 0) * it.qty, 0), [items]);
   const total = subtotal; // taxes/fees can be added later
   const itemCount = useMemo(() => items.reduce((s, it) => s + it.qty, 0), [items]);
 
