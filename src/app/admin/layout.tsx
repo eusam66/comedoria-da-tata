@@ -1,8 +1,16 @@
 'use client';
 import React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/admin/login');
+  }
+
   return (
     <div className="min-h-screen bg-brand-beige">
       {/* Desktop sidebar */}
@@ -16,6 +24,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Link href="/admin/banners" className="px-3 py-3 rounded hover:bg-brand-beige">Banners</Link>
             <Link href="/admin/orders" className="px-3 py-3 rounded hover:bg-brand-beige">Pedidos</Link>
             <Link href="/admin/settings" className="px-3 py-3 rounded hover:bg-brand-beige">Configurações</Link>
+            <button onClick={logout} className="mt-4 px-3 py-3 rounded text-left hover:bg-brand-beige">Sair</button>
           </nav>
         </aside>
       </div>

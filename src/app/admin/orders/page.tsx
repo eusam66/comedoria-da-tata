@@ -45,7 +45,7 @@ export default function AdminOrdersPage(){
         <Skeleton lines={6} />
       ) : (
         <div className="space-y-4 md:grid md:grid-cols-6 gap-3">
-          {STATUSES.map((s, i) => (
+          {STATUSES.map((s) => (
             <div key={s} className="bg-white p-3 rounded shadow">
               <div className="font-semibold mb-2">{s}</div>
               <div className="space-y-3">
@@ -53,12 +53,33 @@ export default function AdminOrdersPage(){
                   <div key={o.code} className="border p-4 rounded touch-manipulation">
                     <div className="font-medium text-lg">{o.code}</div>
                     <div className="text-base text-gray-600">R$ {Number(o.total || 0).toFixed(2)}</div>
-                    <div className="mt-3 flex flex-col gap-2">
-                      {STATUSES.map((t)=> t!==s && (
-                        <button key={t} type="button" onClick={async ()=>{ try{ await changeStatus(o.code,t); toastSuccess('Status atualizado'); }catch(e:any){ toastError(e?.message || 'Erro'); } }} className="w-full bg-brand-beige hover:bg-brand-orange text-brand-dark py-3 rounded text-sm">Mover p/ {t}</button>
-                      ))}
+                      {o.customer && (
+                        <div className="mt-2 text-sm text-gray-600 space-y-1">
+                          {o.customer.name && <div>Cliente: {o.customer.name}</div>}
+                          {o.customer.phone && <div>Telefone: {o.customer.phone}</div>}
+                          {o.customer.address && <div>Endereço: {o.customer.address}</div>}
+                          {o.customer.neighborhood && <div>Bairro: {o.customer.neighborhood}</div>}
+                          {o.customer.complement && <div>Complemento: {o.customer.complement}</div>}
+                        </div>
+                      )}
+                      <div className="mt-3">
+                        <div className="font-semibold text-sm mb-2">Itens</div>
+                        <div className="space-y-2 text-sm text-gray-700">
+                          {Array.isArray(o.items) ? o.items.map((item:any) => (
+                            <div key={`${o.code}-${item.dishId || item.name}`} className="rounded border p-2 bg-gray-50">
+                              <div>{item.quantity}x {item.name}</div>
+                              <div className="text-xs text-gray-500">R$ {Number(item.price).toFixed(2)} cada</div>
+                              {item.notes && <div className="text-xs text-gray-500">Obs: {item.notes}</div>}
+                            </div>
+                          )) : <div>Nenhum item</div>}
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-col gap-2">
+                        {STATUSES.map((t)=> t!==s && (
+                          <button key={t} type="button" onClick={async ()=>{ try{ await changeStatus(o.code,t); toastSuccess('Status atualizado'); }catch(e:any){ toastError(e?.message || 'Erro'); } }} className="w-full bg-brand-beige hover:bg-brand-orange text-brand-dark py-3 rounded text-sm">Mover p/ {t}</button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
                 ))}
               </div>
             </div>
