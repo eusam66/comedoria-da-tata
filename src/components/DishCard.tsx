@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import Image from 'next/image';
 import { DishRow } from '../lib/types';
 import Link from 'next/link';
 import { useCart } from './CartContext';
@@ -9,9 +10,15 @@ export default function DishCard({ dish }: { dish: DishRow }) {
   return (
     <article className="bg-white rounded-3xl p-4 shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300">
       <Link href={`/dishes/${dish.slug}`} className="block rounded-xl overflow-hidden bg-gradient-to-br from-brand-beige to-white">
-        <div className="w-full h-48 md:h-56 lg:h-44 overflow-hidden">
+        <div className="relative w-full h-48 md:h-56 lg:h-44 overflow-hidden">
           {dish.image ? (
-            <img src={dish.image} alt={dish.name} loading="lazy" className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" />
+            <Image
+              src={dish.image}
+              alt={dish.name}
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              className="object-cover transition-transform duration-500 hover:scale-105"
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-brand-brown bg-gray-100">Imagem</div>
           )}

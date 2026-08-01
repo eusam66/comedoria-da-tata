@@ -2,13 +2,31 @@ import "../styles/globals.css";
 import React from 'react';
 import ClientProviders from '../components/ClientProviders';
 
+export const metadataBase = new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
+
 export const metadata = {
   title: 'Comedoria da Tata',
-  description: 'Comida caseira com carinho',
+  description: 'Comida caseira com carinho e entrega rápida diretamente da cozinha da Tata.',
+  metadataBase,
+  themeColor: '#2A140F',
   openGraph: {
     title: 'Comedoria da Tata',
-    description: 'Comida caseira com carinho',
-    url: process.env.NEXT_PUBLIC_SITE_URL || 'https://comedoria-da-tata.example',
+    description: 'Comida caseira com carinho e entrega rápida diretamente da cozinha da Tata.',
+    type: 'website',
+    url: metadataBase.href,
+    images: [
+      {
+        url: '/icons/icon-512.png',
+        width: 512,
+        height: 512,
+        alt: 'Comedoria da Tata'
+      }
+    ]
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Comedoria da Tata',
+    description: 'Comida caseira com carinho e entrega rápida diretamente da cozinha da Tata.',
     images: ['/icons/icon-512.png']
   }
 };

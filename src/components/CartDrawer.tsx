@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import Image from 'next/image';
 import { useCart } from './CartContext';
 
 import dynamic from 'next/dynamic';
@@ -33,8 +34,9 @@ export default function CartDrawer() {
                 <div key={it.id} className="flex gap-3 items-start">
                   <div className="w-20 h-20 bg-gray-100 rounded-md overflow-hidden flex items-center justify-center">
                     {it.dish.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={it.dish.image} alt={it.dish.name} className="w-full h-full object-cover" />
+                      <div className="relative w-full h-full">
+                        <Image src={it.dish.image} alt={it.dish.name} fill className="object-cover" />
+                      </div>
                     ) : (
                       <div className="text-xs text-gray-500">Imagem</div>
                     )}

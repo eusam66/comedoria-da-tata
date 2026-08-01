@@ -9,6 +9,25 @@ import DishesBrowser from '../components/DishesBrowser';
 import { getCategories } from '../lib/api';
 import { bannersRepo } from '../lib/repos/bannersRepo';
 
+export const revalidate = 60;
+
+export const metadata = {
+  title: 'Comedoria da Tata | Cardápio Digital',
+  description: 'Descubra pratos caseiros, delivery rápido e ofertas especiais direto da Comedoria da Tata.',
+  openGraph: {
+    title: 'Comedoria da Tata | Cardápio Digital',
+    description: 'Descubra pratos caseiros, delivery rápido e ofertas especiais direto da Comedoria da Tata.',
+    type: 'website',
+    images: ['/icons/icon-512.png']
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Comedoria da Tata | Cardápio Digital',
+    description: 'Descubra pratos caseiros, delivery rápido e ofertas especiais direto da Comedoria da Tata.',
+    images: ['/icons/icon-512.png']
+  }
+};
+
 export default async function HomePage() {
   const open = true;
   const avgTime = '30-45 min';

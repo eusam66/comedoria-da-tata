@@ -7,6 +7,8 @@ import Skeleton from './Skeleton';
 
 import { CategoryRow, DishRow } from '../lib/types';
 
+const dishesCache = new Map<string, DishRow[]>();
+
 export default function DishesBrowser({ categories }: { categories: CategoryRow[] }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string | null>(null);
@@ -15,17 +17,29 @@ export default function DishesBrowser({ categories }: { categories: CategoryRow[
   const [error, setError] = useState<string | null>(null);
 
   async function fetchDishes(q?: string, cat?: string | null) {
-    setLoading(true);
+    const cacheKey = `${q || ''}|${cat || ''}`;
+    const cached = dishesCache.get(cacheKey);
+
+    if (cached) {
+      setDishes(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     setError(null);
+
     try {
       const params = new URLSearchParams();
       if (q) params.set('q', q);
       if (cat) params.set('category', cat);
-      const res = await fetch('/api/dishes?' + params.toString());
+      const res = await fetch('/api/dishes?' + params.toString(), { cache: 'force-cache' });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || 'Erro ao buscar pratos');
-      setDishes(json || []);
-    } catch (err:any) {
+      const freshDishes = json || [];
+      dishesCache.set(cacheKey, freshDishes);
+      setDishes(freshDishes);
+    } catch (err: any) {
       setError(err.message || 'Erro desconhecido');
     } finally {
       setLoading(false);
@@ -50,7 +64,7 @@ export default function DishesBrowser({ categories }: { categories: CategoryRow[
         <CategoryList categories={categories} selected={category} onSelect={setCategory} />
       </div>
 
-      {loading && (
+      {loading && dishes.length === 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="bg-white rounded-3xl p-4 shadow-lg">
