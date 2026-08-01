@@ -51,17 +51,17 @@ export default function DishesBrowser({ categories }: { categories: CategoryRow[
       </div>
 
       {loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="bg-white rounded-lg p-4 shadow-sm">
-              <Skeleton lines={4} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-3xl p-4 shadow-lg">
+              <Skeleton lines={6} />
             </div>
           ))}
         </div>
       )}
       {error && <div className="text-sm text-red-600">{error}</div>}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {dishes.map((d) => (
           <DishCard key={d.id} dish={d} />
         ))}

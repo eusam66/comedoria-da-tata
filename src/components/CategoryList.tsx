@@ -12,12 +12,12 @@ export default function CategoryList({
   onSelect?: (id: string | null) => void;
 }) {
   return (
-    <div className="overflow-x-auto scroll-x py-2 -mx-4 px-4">
+    <div className="overflow-x-auto py-2 -mx-4 px-4">
       <div className="flex gap-3">
         <button
           type="button"
           onClick={() => onSelect?.(null)}
-          className={`min-w-[90px] rounded-lg p-2 flex-shrink-0 ${!selected ? 'bg-brand-orange text-white' : 'bg-white'}`}
+              className={`min-w-[90px] rounded-full px-4 py-2 flex-shrink-0 ${!selected ? 'bg-brand-orange text-white' : 'bg-white'}`}
         >
           Todos
         </button>
@@ -26,10 +26,10 @@ export default function CategoryList({
             key={c.id}
             type="button"
             onClick={() => onSelect?.(c.id)}
-            className={`min-w-[110px] bg-white rounded-lg p-3 shadow-sm text-center flex-shrink-0 ${selected === c.id ? 'ring-2 ring-brand-orange' : ''}`}
+                className={`min-w-[110px] bg-white rounded-full px-4 py-3 shadow-sm text-center flex-shrink-0 flex flex-col items-center gap-2 ${selected === c.id ? 'ring-2 ring-brand-orange' : ''}`}
           >
             <div className="w-12 h-12 rounded-full bg-brand-beige mx-auto flex items-center justify-center text-brand-brown">{c.name[0]}</div>
-            <div className="mt-2 text-sm font-medium">{c.name}</div>
+                <div className="mt-1 text-sm font-medium">{c.name}</div>
           </button>
         ))}
       </div>

@@ -5,15 +5,17 @@ import Link from 'next/link';
 
 export default function DishCard({ dish }: { dish: DishRow }) {
   return (
-    <article className="bg-white rounded-2xl p-4 shadow-md flex gap-4 hover:shadow-lg transition-shadow duration-200">
-      <Link href={`/dishes/${dish.slug}`} className="w-28 h-28 bg-gradient-to-br from-brand-beige to-white rounded-xl flex-shrink-0 overflow-hidden">
-        {dish.image ? (
-          <img src={dish.image} alt={dish.name} loading="lazy" className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-300" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-brand-brown">Imagem</div>
-        )}
+    <article className="bg-white rounded-3xl p-4 shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300">
+      <Link href={`/dishes/${dish.slug}`} className="block rounded-xl overflow-hidden bg-gradient-to-br from-brand-beige to-white">
+        <div className="w-full h-48 md:h-56 lg:h-44 overflow-hidden">
+          {dish.image ? (
+            <img src={dish.image} alt={dish.name} loading="lazy" className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-brand-brown bg-gray-100">Imagem</div>
+          )}
+        </div>
       </Link>
-      <div className="flex-1">
+      <div className="mt-3">
         <Link href={`/dishes/${dish.slug}`} className="no-underline text-inherit">
           <h4 className="font-display text-lg text-brand-dark">{dish.name}</h4>
           <p className="text-sm text-gray-600 mt-1 line-clamp-2">{dish.description}</p>
