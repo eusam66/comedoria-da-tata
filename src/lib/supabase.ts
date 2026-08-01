@@ -7,7 +7,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env
 let _supabase: ReturnType<typeof createClient> | null = null;
 if (!supabaseUrl || !supabaseAnonKey) {
   // Não lançar erro para que builds locais/tests possam continuar; porém registrar para facilitar o debug
-  console.warn('Supabase client not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (or SUPABASE_URL/URL_SUPABASE and SUPABASE_ANON_KEY/URL_SUPABASE_ANON_KEY) in your environment.');
+  console.error('Supabase client not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (or SUPABASE_URL/URL_SUPABASE and SUPABASE_ANON_KEY/URL_SUPABASE_ANON_KEY) in your environment.');
 } else {
   _supabase = createClient(supabaseUrl, supabaseAnonKey);
 }

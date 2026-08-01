@@ -8,7 +8,7 @@ export default async function AdminDashboard() {
   try {
     orders = (await adminListOrders()) as Order[];
   } catch (err) {
-    console.warn('adminListOrders unavailable during build', err);
+    console.error('adminListOrders unavailable during build', err);
     orders = [];
   }
   const recent = orders.slice(0, 5);

@@ -28,7 +28,7 @@ export async function middleware(req: NextRequest) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || process.env.URL_SUPABASE;
     if (!supabaseUrl) {
-      console.warn('SUPABASE_URL not set');
+      // Supabase URL missing; redirect to admin login
       return NextResponse.redirect(new URL('/admin/login', req.url));
     }
     const resp = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/user`, {
