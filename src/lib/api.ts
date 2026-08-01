@@ -45,17 +45,18 @@ export async function getCategories(): Promise<Category[]> {
 
 export async function getDishes(): Promise<Dish[]> {
   if (!supabase) return [];
-  const { data, error } = await (supabase as any).from('dishes').select('*').order('name');
-  if (error) {
-    console.error('getDishes error', error);
-    return [];
-  }
+  const { count, error } = await (supabase as any)
+    .from('dishes')
+    .select('*', { count: 'exact', head: true });
+
   console.log({
-    data,
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    hasAnon: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    count,
     error,
-    count: data?.length,
   });
-  return (data || []).map(mapDishRow);
+
+  return [];
 }
 
 export async function getDishBySlug(slug: string): Promise<Dish | undefined> {
