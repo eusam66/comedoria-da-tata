@@ -7,6 +7,12 @@ type AdminRow = {
   role: string | null;
 };
 
+function normalizeEmail(value: unknown) {
+  return String(value || '')
+    .trim()
+    .toLowerCase();
+}
+
 export async function POST(request: Request) {
   try {
     if (!supabaseAdmin) {
@@ -20,9 +26,7 @@ export async function POST(request: Request) {
 
     const { email, password } = await request.json();
 
-    const normalizedEmail = String(email || '')
-      .trim()
-      .toLowerCase();
+    const normalizedEmail = normalizeEmail(email);
 
     if (!normalizedEmail || !password) {
       return NextResponse.json(
@@ -39,7 +43,10 @@ export async function POST(request: Request) {
       });
 
     if (authError || !data?.session || !data?.user) {
-      console.error('[ADMIN LOGIN] Falha de autenticação:', authError);
+      console.error(
+        '[ADMIN LOGIN] Falha de autenticação:',
+        authError
+      );
 
       return NextResponse.json(
         { error: 'E-mail ou senha inválidos.' },
@@ -47,23 +54,29 @@ export async function POST(request: Request) {
       );
     }
 
-    const authenticatedEmail = String(data.user.email || '')
-      .trim()
-      .toLowerCase();
+    const authenticatedEmail = normalizeEmail(
+      data.user.email
+    );
 
-    // 2. Procura autorização administrativa pelo e-mail
-    const { data: adminData, error: adminError } = await supabaseAdmin
+    console.log(
+      '[ADMIN LOGIN] Usuário autenticado:',
+      authenticatedEmail
+    );
+
+    // 2. Busca os administradores.
+    // A comparação será feita no servidor depois de normalizar
+    // os e-mails, evitando problemas com maiúsculas,
+    // minúsculas ou espaços invisíveis.
+    const {
+      data: adminsData,
+      error: adminError,
+    } = await supabaseAdmin
       .from('admins')
-      .select('id, email, role')
-      .ilike('email', authenticatedEmail)
-      .maybeSingle();
+      .select('id, email, role');
 
-    const admin = adminData as AdminRow | null;
-
-    // Agora erros do banco não ficam escondidos
     if (adminError) {
       console.error(
-        '[ADMIN LOGIN] Erro ao consultar tabela admins:',
+        '[ADMIN LOGIN] Erro ao consultar admins:',
         adminError
       );
 
@@ -76,42 +89,69 @@ export async function POST(request: Request) {
       );
     }
 
+    const admins = (adminsData || []) as AdminRow[];
+
+    console.log(
+      '[ADMIN LOGIN] Quantidade de admins encontrada:',
+      admins.length
+    );
+
+    console.log(
+      '[ADMIN LOGIN] Emails cadastrados:',
+      admins.map((item) => normalizeEmail(item.email))
+    );
+
+    const admin = admins.find(
+      (item) =>
+        normalizeEmail(item.email) === authenticatedEmail
+    );
+
     if (!admin) {
       console.warn(
-        `[ADMIN LOGIN] Usuário autenticado sem registro admin: ${authenticatedEmail}`
+        '[ADMIN LOGIN] Usuário autenticado sem registro administrativo:',
+        authenticatedEmail
       );
 
       return NextResponse.json(
         {
-          error: 'Este usuário não possui acesso administrativo.',
+          error:
+            'Este usuário não possui acesso administrativo.',
         },
         { status: 403 }
       );
     }
 
-    // 3. Confirma que o registro possui função administrativa
-    if (
-      admin.role &&
-      String(admin.role).trim().toLowerCase() !== 'admin'
-    ) {
+    // 3. Confere a função administrativa
+    const role = String(admin.role || 'admin')
+      .trim()
+      .toLowerCase();
+
+    if (role !== 'admin') {
       console.warn(
-        `[ADMIN LOGIN] Usuário sem role admin: ${authenticatedEmail}`
+        '[ADMIN LOGIN] Usuário encontrado, mas role inválida:',
+        role
       );
 
       return NextResponse.json(
         {
-          error: 'Este usuário não possui acesso administrativo.',
+          error:
+            'Este usuário não possui acesso administrativo.',
         },
         { status: 403 }
       );
     }
 
-    // 4. Cria os cookies da sessão
+    console.log(
+      '[ADMIN LOGIN] Acesso administrativo autorizado:',
+      authenticatedEmail
+    );
+
+    // 4. Cria sessão da aplicação
     const response = NextResponse.json({
       ok: true,
       user: {
         email: authenticatedEmail,
-        role: admin.role || 'admin',
+        role,
       },
     });
 
@@ -141,10 +181,16 @@ export async function POST(request: Request) {
 
     return response;
   } catch (error) {
-    console.error('[ADMIN LOGIN] Erro inesperado:', error);
+    console.error(
+      '[ADMIN LOGIN] Erro inesperado:',
+      error
+    );
 
     return NextResponse.json(
-      { error: 'Erro inesperado ao realizar login.' },
+      {
+        error:
+          'Erro inesperado ao realizar login.',
+      },
       { status: 500 }
     );
   }
