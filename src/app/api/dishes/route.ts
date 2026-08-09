@@ -8,9 +8,10 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const q = url.searchParams.get('q') || undefined;
     const category = url.searchParams.get('category') || undefined;
+    const includeUnavailable = url.searchParams.get('includeUnavailable') === '1';
     const dishes = q || category
       ? await searchDishes({ q, categoryId: category })
-      : await getDishes();
+      : await getDishes({ includeUnavailable });
 
     return new NextResponse(JSON.stringify(dishes), {
       headers: {

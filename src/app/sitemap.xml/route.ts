@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDishes, getCategories } from '../../lib/api';
+import { getDishes } from '../../lib/api';
 
 const CACHE_CONTROL = 'public, max-age=86400, stale-while-revalidate=86400';
 
@@ -7,12 +7,7 @@ export async function GET() {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
     const dishes = await getDishes().catch(() => []);
-    const categories = await getCategories().catch(() => []);
-
-    const pages = ['', 'cardapio'];
-    const urls = pages.map((p) => `${baseUrl}/${p}`);
-
-    categories.forEach((c: any) => urls.push(`${baseUrl}/categoria/${c.slug || c.id}`));
+    const urls = [baseUrl.replace(/\/$/, '')];
     (dishes || []).forEach((d: any) => urls.push(`${baseUrl}/dishes/${d.slug || d.id}`));
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +

@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import supabase from '../supabase';
 import { OrderRow } from '../types';
 import { generateOrderCode } from '../orders';
@@ -15,7 +14,7 @@ export const ordersRepo = {
     return (data as OrderRow) ?? null;
   },
   async create(payload: { items: any; customer?: any }) {
-    const id = uuidv4();
+    const id = crypto.randomUUID();
     const code = generateOrderCode();
     const total = (payload.items || []).reduce((s:any, it:any) => s + (it.price || 0) * (it.quantity || 1), 0);
     const row = { id, code, items: payload.items, total, status: 'Novo', customer: payload.customer || null };

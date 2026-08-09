@@ -32,6 +32,10 @@ export function parseStoragePublicUrl(publicUrl: string | null | undefined): { b
 export async function removeStorageFileByPublicUrl(publicUrl: string | null | undefined) {
   const parsed = parseStoragePublicUrl(publicUrl);
   if (!parsed) return false;
+  if (!['dishes', 'banners', 'branding'].includes(parsed.bucket)) return false;
+
+  const configuredUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!configuredUrl || new URL(publicUrl!).origin !== new URL(configuredUrl).origin) return false;
 
   const { error } = await adminStorage().from(parsed.bucket).remove([parsed.path]);
   if (error) throw error;

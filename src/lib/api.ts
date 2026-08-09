@@ -140,7 +140,7 @@ function mapDishRow(row: any): Dish {
     price: row.price,
     image: image,
     categoryId: row.category_id || null,
-    categoryName: row.category_name || row.categoryName || null,
+    categoryName: row.category_name || row.categoryName || row.categories?.name || null,
     ingredients: row.ingredients || null,
     servings: row.servings ?? row.serves ?? null,
     popular: row.popular ?? row.is_featured ?? null,
@@ -194,15 +194,16 @@ export async function getCategories(): Promise<Category[]> {
     .map((row: any) => ({ id: row.id, name: row.name, image: row.image || row.image_url || undefined })) as Category[];
 }
 
-export async function getDishes(): Promise<Dish[]> {
+export async function getDishes(options: { includeUnavailable?: boolean } = {}): Promise<Dish[]> {
   if (!supabase) return mockDishes;
 
-  const { data, error } = await (supabase as any).from('dishes').select('*').order('name');
+  const { data, error } = await (supabase as any).from('dishes').select('*, categories(name)').order('name');
   if (error) {
     console.error('getDishes error', error);
     return mockDishes;
   }
-  return sortDishes((data || []).map(mapDishRow).filter((dish: Dish) => dish.isAvailable !== false));
+  const dishes = sortDishes((data || []).map(mapDishRow));
+  return options.includeUnavailable ? dishes : dishes.filter((dish: Dish) => dish.isAvailable !== false);
 }
 
 export async function getDishBySlug(slug: string): Promise<Dish | undefined> {
