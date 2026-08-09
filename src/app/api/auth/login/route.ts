@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import supabaseAdmin from '@/lib/supabaseAdmin';
 
 type AdminRow = {
@@ -15,11 +16,26 @@ function normalizeEmail(value: unknown) {
 
 export async function POST(request: Request) {
   try {
-    if (!supabaseAdmin) {
-      console.error('[ADMIN LOGIN] Supabase Admin não configurado');
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      process.env.SUPABASE_URL ||
+      '';
+
+    const anonKey =
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      process.env.SUPABASE_ANON_KEY ||
+      '';
+
+    if (!supabaseUrl || !anonKey || !supabaseAdmin) {
+      console.error(
+        '[ADMIN LOGIN] Configuração do Supabase incompleta'
+      );
 
       return NextResponse.json(
-        { error: 'Login temporariamente indisponível.' },
+        {
+          error:
+            'Login temporariamente indisponível.',
+        },
         { status: 503 }
       );
     }
@@ -30,32 +46,61 @@ export async function POST(request: Request) {
 
     if (!normalizedEmail || !password) {
       return NextResponse.json(
-        { error: 'Informe e-mail e senha.' },
+        {
+          error: 'Informe e-mail e senha.',
+        },
         { status: 400 }
       );
     }
 
-    // 1. Autentica o usuário no Supabase Auth
-    const { data, error: authError } =
-      await supabaseAdmin.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-      });
+    /*
+     * IMPORTANTE:
+     *
+     * Este client é usado SOMENTE para autenticação.
+     * Não usamos o supabaseAdmin para signInWithPassword,
+     * evitando que a sessão do usuário substitua a
+     * autorização Service Role.
+     */
+    const supabaseAuth = createClient(
+      supabaseUrl,
+      anonKey,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      }
+    );
 
-    if (authError || !data?.session || !data?.user) {
+    // 1. Autentica usuário normalmente
+    const {
+      data: authData,
+      error: authError,
+    } = await supabaseAuth.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
+
+    if (
+      authError ||
+      !authData?.session ||
+      !authData?.user
+    ) {
       console.error(
         '[ADMIN LOGIN] Falha de autenticação:',
         authError
       );
 
       return NextResponse.json(
-        { error: 'E-mail ou senha inválidos.' },
+        {
+          error: 'E-mail ou senha inválidos.',
+        },
         { status: 401 }
       );
     }
 
     const authenticatedEmail = normalizeEmail(
-      data.user.email
+      authData.user.email
     );
 
     console.log(
@@ -63,10 +108,12 @@ export async function POST(request: Request) {
       authenticatedEmail
     );
 
-    // 2. Busca os administradores.
-    // A comparação será feita no servidor depois de normalizar
-    // os e-mails, evitando problemas com maiúsculas,
-    // minúsculas ou espaços invisíveis.
+    /*
+     * 2. Consulta a tabela admins usando OUTRO client.
+     *
+     * supabaseAdmin continua intacto com Service Role
+     * e pode consultar a tabela independentemente do RLS.
+     */
     const {
       data: adminsData,
       error: adminError,
@@ -76,7 +123,7 @@ export async function POST(request: Request) {
 
     if (adminError) {
       console.error(
-        '[ADMIN LOGIN] Erro ao consultar admins:',
+        '[ADMIN LOGIN] Erro consultando admins:',
         adminError
       );
 
@@ -92,18 +139,14 @@ export async function POST(request: Request) {
     const admins = (adminsData || []) as AdminRow[];
 
     console.log(
-      '[ADMIN LOGIN] Quantidade de admins encontrada:',
+      '[ADMIN LOGIN] Administradores encontrados:',
       admins.length
-    );
-
-    console.log(
-      '[ADMIN LOGIN] Emails cadastrados:',
-      admins.map((item) => normalizeEmail(item.email))
     );
 
     const admin = admins.find(
       (item) =>
-        normalizeEmail(item.email) === authenticatedEmail
+        normalizeEmail(item.email) ===
+        authenticatedEmail
     );
 
     if (!admin) {
@@ -121,17 +164,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Confere a função administrativa
-    const role = String(admin.role || 'admin')
+    const role = String(
+      admin.role || 'admin'
+    )
       .trim()
       .toLowerCase();
 
     if (role !== 'admin') {
-      console.warn(
-        '[ADMIN LOGIN] Usuário encontrado, mas role inválida:',
-        role
-      );
-
       return NextResponse.json(
         {
           error:
@@ -146,7 +185,7 @@ export async function POST(request: Request) {
       authenticatedEmail
     );
 
-    // 4. Cria sessão da aplicação
+    // 3. Cria os cookies da sessão
     const response = NextResponse.json({
       ok: true,
       user: {
@@ -157,11 +196,12 @@ export async function POST(request: Request) {
 
     response.cookies.set(
       'supabase-access-token',
-      data.session.access_token,
+      authData.session.access_token,
       {
         httpOnly: true,
         sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
+        secure:
+          process.env.NODE_ENV === 'production',
         path: '/',
         maxAge: 60 * 60 * 24 * 7,
       }
@@ -169,11 +209,12 @@ export async function POST(request: Request) {
 
     response.cookies.set(
       'supabase-refresh-token',
-      data.session.refresh_token,
+      authData.session.refresh_token,
       {
         httpOnly: true,
         sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
+        secure:
+          process.env.NODE_ENV === 'production',
         path: '/',
         maxAge: 60 * 60 * 24 * 30,
       }
