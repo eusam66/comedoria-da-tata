@@ -44,6 +44,12 @@ export default function Home() {
   const [customer, setCustomer] = useState({ name: "", phone: "", delivery: "delivery", street: "", number: "", neighborhood: "", complement: "", reference: "", payment: "pix", change: "", notes: "" });
 
   useEffect(() => {
+    if (window.location.hash.includes("type=recovery")) {
+      window.location.replace(`/admin/reset-password${window.location.hash}`);
+    }
+  }, []);
+
+  useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
         const saved = localStorage.getItem("comedoria-cart");

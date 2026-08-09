@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server';
 const PUBLIC_FILE = /(.*)\.(.*)$/i;
 const ADMIN_PREFIX = '/admin';
 const ADMIN_API_PREFIX = '/api/admin';
-const ALLOWED = ['/admin/login', '/api/auth/set_session', '/api/auth/logout'];
+const ALLOWED = ['/admin/login', '/admin/forgot-password', '/admin/reset-password', '/api/auth/set_session', '/api/auth/logout'];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
