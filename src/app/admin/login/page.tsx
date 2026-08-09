@@ -1,7 +1,6 @@
 'use client';
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../../lib/supabase';
 
 export default function AdminLogin() {
   const [user, setUser] = useState('');
@@ -14,17 +13,15 @@ export default function AdminLogin() {
     e.preventDefault();
     setLoading(true); setError(null);
     try {
-      const { data, error } = await (supabase as any).auth.signInWithPassword({ email: user, password: pass });
-      if (error) throw error;
-      const session = (data as any)?.session;
-      if (!session) throw new Error('No session returned');
-      // Send tokens to server to set httpOnly cookies for middleware
-      await fetch('/api/auth/set_session', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token })
+        body: JSON.stringify({ email: user, password: pass })
       });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Não foi possível entrar.');
       router.push('/admin');
+      router.refresh();
     } catch (err:any) {
       console.error('login error', err);
       setError(err?.message || 'Erro ao autenticar');
