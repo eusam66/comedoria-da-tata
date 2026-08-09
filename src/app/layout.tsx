@@ -8,7 +8,6 @@ export const metadata = {
   title: 'Comedoria da Tata',
   description: 'Comida caseira com carinho e entrega rápida diretamente da cozinha da Tata.',
   metadataBase: new URL(siteUrl),
-  themeColor: '#2A140F',
   openGraph: {
     title: 'Comedoria da Tata',
     description: 'Comida caseira com carinho e entrega rápida diretamente da cozinha da Tata.',
@@ -31,11 +30,17 @@ export const metadata = {
   }
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover' as const,
+  themeColor: '#2A140F'
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
       <head>
-        <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#2A140F" />
         <link rel="icon" href="/icons/icon-192.png" />

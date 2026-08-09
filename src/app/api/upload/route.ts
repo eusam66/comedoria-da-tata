@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server';
 import supabaseAdmin from '@/lib/supabaseAdmin';
 import { removeStorageFileByPublicUrl } from '@/lib/storageAdmin';
+import { requireAdmin } from '@/lib/adminAuthSafe';
 
 const ALLOWED_BUCKETS = new Set(['dishes', 'banners', 'branding']);
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+function safeObjectPath(bucket: string, originalName: string) {
+  const extension = originalName.toLowerCase().match(/\.(jpe?g|png|webp|gif)$/)?.[0] || '';
+  return `uploads/${bucket}/${crypto.randomUUID()}${extension}`;
+}
 
 async function ensureBucketExists(bucket: string) {
   if (!supabaseAdmin) return;
@@ -21,6 +29,7 @@ async function ensureBucketExists(bucket: string) {
 
 export async function POST(req: Request) {
   try {
+    await requireAdmin(req);
     if (!supabaseAdmin) {
       return NextResponse.json({ error: 'Supabase admin client not configured' }, { status: 500 });
     }
@@ -28,16 +37,27 @@ export async function POST(req: Request) {
     const form = await req.formData();
     const file = form.get('file') as File | null;
     const bucket = String(form.get('bucket') || 'dishes');
-    const path = String(form.get('path') || `uploads/${Date.now()}_${(file as File)?.name || 'bin'}`);
     if (!file) return NextResponse.json({ error: 'no file provided' }, { status: 400 });
     if (!ALLOWED_BUCKETS.has(bucket)) {
       return NextResponse.json({ error: 'invalid bucket' }, { status: 400 });
     }
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+      return NextResponse.json({ error: 'unsupported image type' }, { status: 415 });
+    }
+    if (file.size <= 0 || file.size > MAX_UPLOAD_BYTES) {
+      return NextResponse.json({ error: 'image must be between 1 byte and 10 MB' }, { status: 413 });
+    }
+
+    const path = safeObjectPath(bucket, file.name);
 
     await ensureBucketExists(bucket);
 
     const buffer = await file.arrayBuffer();
-    const { error } = await supabaseAdmin.storage.from(bucket).upload(path, Buffer.from(buffer), { cacheControl: '3600', upsert: true });
+    const { error } = await supabaseAdmin.storage.from(bucket).upload(path, Buffer.from(buffer), {
+      cacheControl: '31536000',
+      contentType: file.type,
+      upsert: false
+    });
     if (error) {
       console.error('upload error', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -52,6 +72,7 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    await requireAdmin(req);
     if (!supabaseAdmin) {
       return NextResponse.json({ error: 'Supabase admin client not configured' }, { status: 500 });
     }

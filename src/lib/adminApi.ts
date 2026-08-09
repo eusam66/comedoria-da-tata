@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import { generateOrderCode } from './orders';
 import supabaseAdmin from './supabaseAdmin';
 import { slugify } from './slug';
@@ -24,7 +23,7 @@ export async function adminListCategories() {
 }
 
 export async function adminCreateCategory(payload: { name: string; slug?: string; description?: string; image?: string; position?: number; isActive?: boolean }) {
-  const id = uuidv4();
+  const id = crypto.randomUUID();
   const { data, error } = await adminClient().from('categories').insert([{
     id,
     name: payload.name,
@@ -75,7 +74,7 @@ export async function adminListDishes() {
 }
 
 export async function adminCreateDish(payload: any) {
-  const id = uuidv4();
+  const id = crypto.randomUUID();
   const code = payload.code || `D-${Date.now()}`;
   const row = {
     id,
@@ -141,7 +140,7 @@ export async function adminListBanners() {
 }
 
 export async function adminCreateBanner(payload: any) {
-  const id = uuidv4();
+  const id = crypto.randomUUID();
   const row = {
     id,
     title: payload.title,
@@ -218,7 +217,7 @@ export type Order = {
 };
 
 export async function adminCreateOrder(payload: { items: Order['items']; customer?: any }) {
-  const id = uuidv4();
+  const id = crypto.randomUUID();
   const code = generateOrderCode();
   const total = (payload.items || []).reduce((s, it) => s + it.price * it.quantity, 0);
   const row = {
