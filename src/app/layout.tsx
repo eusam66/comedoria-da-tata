@@ -41,6 +41,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR">
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var p=new URLSearchParams(location.hash.slice(1));if(p.get('type')!=='recovery')return;var a=p.get('access_token'),r=p.get('refresh_token');if(a&&r)sessionStorage.setItem('comedoria-recovery',JSON.stringify({accessToken:a,refreshToken:r}));if(location.pathname==='/'){location.replace('/admin/reset-password');return}if(location.pathname==='/admin/reset-password')history.replaceState(null,'','/admin/reset-password')})();`,
+          }}
+        />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#2A140F" />
         <link rel="icon" href="/icons/icon-192.png" />

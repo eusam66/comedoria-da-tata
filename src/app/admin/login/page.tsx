@@ -1,6 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function AdminLogin() {
   const [user, setUser] = useState('');
@@ -38,6 +39,7 @@ export default function AdminLogin() {
         <label className="block mb-2 text-sm">Senha</label>
                 <input aria-label="Senha do administrador" type="password" value={pass} onChange={(e) => setPass(e.target.value)} className="w-full border px-3 py-2 rounded mb-4" />
         <button type="submit" disabled={loading} className="w-full bg-brand-dark text-white py-2 rounded">{loading ? 'Entrando...' : 'Entrar'}</button>
+        <Link href="/admin/forgot-password" className="mt-4 block text-center text-sm text-brand-brown underline">Esqueci minha senha</Link>
       </form>
     </div>
   );
