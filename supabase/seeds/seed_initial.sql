@@ -43,3 +43,4 @@ VALUES
 ON CONFLICT (email) DO NOTHING;
 
 -- Fim do seed
+
