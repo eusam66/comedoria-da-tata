@@ -1,15 +1,9 @@
 'use client';
-import React from 'react';
 import Image from 'next/image';
 import { useCart } from './CartContext';
 
-import dynamic from 'next/dynamic';
-
-const Checkout = dynamic(() => import('./Checkout'), { ssr: false });
-
 export default function CartDrawer() {
   const { items, isOpen, close, updateQty, removeItem, updateNotes, subtotal } = useCart();
-  const [showCheckout, setShowCheckout] = React.useState(false);
 
   if (!isOpen) return null;
 
@@ -94,15 +88,17 @@ export default function CartDrawer() {
             <span>R$ {subtotal.toFixed(2)}</span>
           </div>
           <div className="mt-4">
-            {!showCheckout ? (
-              <button onClick={() => setShowCheckout(true)} className="w-full rounded-3xl bg-brand-orange px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-orange/20 transition hover:bg-brand-dark">
-                Finalizar pedido
-              </button>
-            ) : (
-              <div className="rounded-[1.5rem] border border-brand-brown/10 bg-brand-beige/80 p-4 shadow-sm">
-                <Checkout onClose={() => setShowCheckout(false)} />
-              </div>
-            )}
+            <button
+              type="button"
+              disabled={items.length === 0}
+              onClick={() => {
+                close();
+                window.location.assign('/?checkout=1');
+              }}
+              className="w-full rounded-3xl bg-brand-orange px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-orange/20 transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Finalizar pedido
+            </button>
           </div>
         </div>
       </div>

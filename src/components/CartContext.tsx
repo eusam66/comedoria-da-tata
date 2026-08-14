@@ -12,9 +12,15 @@ export type CartItem = {
   unitPrice: number;
 };
 
+type AddItemOptions = {
+  notes?: string;
+  selectedAddons?: SelectedAddon[];
+  openCart?: boolean;
+};
+
 type CartContextValue = {
   items: CartItem[];
-  addItem: (dish: DishRow, qty?: number, options?: string | { notes?: string; selectedAddons?: SelectedAddon[] }) => void;
+  addItem: (dish: DishRow, qty?: number, options?: string | AddItemOptions) => void;
   updateQty: (id: string, qty: number) => void;
   updateNotes: (id: string, notes: string) => void;
   removeItem: (id: string) => void;
@@ -69,7 +75,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [items]);
 
-  function addItem(dish: DishRow, qty = 1, options?: string | { notes?: string; selectedAddons?: SelectedAddon[] }) {
+  function addItem(dish: DishRow, qty = 1, options?: string | AddItemOptions) {
     const notes = typeof options === 'string' ? options : options?.notes;
     const selectedAddons = typeof options === 'string' ? [] : (options?.selectedAddons || []).filter((addon) => addon.qty > 0);
     const addonKey = selectedAddonsKey(selectedAddons);
@@ -85,7 +91,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const newItem: CartItem = { id: cartKey, dish, qty, notes, selectedAddons, unitPrice };
       return [...prev, newItem];
     });
-    setIsOpen(true);
+    if (typeof options === 'string' || options?.openCart !== false) setIsOpen(true);
   }
 
   function updateQty(id: string, qty: number) {

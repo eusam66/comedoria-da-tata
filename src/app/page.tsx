@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
+import Link from "next/link";
+import { useCart } from "@/components/CartContext";
+import type { DishRow } from "@/lib/types";
 import "./storefront.css";
 
 type Dish = {
@@ -33,11 +36,10 @@ const keyOf = (id: string | number) => String(id);
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 export default function Home() {
+  const { items, addItem, updateQty, removeItem, clear, itemCount, total } = useCart();
   const [dishes, setDishes] = useState<Dish[]>(fallbackDishes);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todos");
-  const [cart, setCart] = useState<Record<string, number>>({});
-  const [cartLoaded, setCartLoaded] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -47,19 +49,14 @@ export default function Home() {
     if (window.location.hash.includes("type=recovery")) {
       window.location.replace(`/admin/reset-password${window.location.hash}`);
     }
+    const search = new URLSearchParams(window.location.search);
+    if (search.get("checkout") === "1") {
+      setCheckoutOpen(true);
+      window.history.replaceState(null, "", "/");
+    }
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      try {
-        const saved = localStorage.getItem("comedoria-cart");
-        if (saved) setCart(JSON.parse(saved));
-      } catch {
-        localStorage.removeItem("comedoria-cart");
-      }
-      setCartLoaded(true);
-    }, 0);
-
     fetch("/api/menu")
       .then((response) => response.ok ? response.json() : Promise.reject())
       .then((remote: Dish[]) => {
@@ -77,12 +74,7 @@ export default function Home() {
         setDishes(enriched);
       })
       .catch(() => {});
-    return () => window.clearTimeout(timer);
   }, []);
-
-  useEffect(() => {
-    if (cartLoaded) localStorage.setItem("comedoria-cart", JSON.stringify(cart));
-  }, [cart, cartLoaded]);
 
   const categories = useMemo(() => ["Todos", ...Array.from(new Set(dishes.map((dish) => dish.cat)))], [dishes]);
   const filtered = useMemo(() => dishes.filter((dish) => {
@@ -90,13 +82,28 @@ export default function Home() {
     const haystack = normalize(`${dish.name} ${dish.cat} ${dish.desc}`);
     return matchesCategory && haystack.includes(normalize(query.trim()));
   }), [dishes, query, category]);
-  const count = Object.values(cart).reduce((sum, quantity) => sum + quantity, 0);
-  const total = dishes.reduce((sum, dish) => sum + (cart[keyOf(dish.id)] || 0) * dish.price, 0);
+  const count = itemCount;
+
+  const asCartDish = (dish: Dish): DishRow => ({
+    id: keyOf(dish.id),
+    slug: dish.slug || keyOf(dish.id),
+    name: dish.name,
+    description: dish.desc,
+    price: dish.price,
+    image: dish.image,
+    is_available: dish.available !== false
+  });
 
   const changeQuantity = (dish: Dish, amount: number) => {
     if (dish.available === false) return;
-    const key = keyOf(dish.id);
-    setCart((current) => ({ ...current, [key]: Math.max(0, (current[key] || 0) + amount) }));
+    const baseItem = items.find((item) => keyOf(item.dish.id) === keyOf(dish.id) && item.selectedAddons.length === 0 && !item.notes);
+    if (amount > 0) {
+      addItem(asCartDish(dish), amount, { openCart: false });
+    } else if (baseItem && baseItem.qty > 1) {
+      updateQty(baseItem.id, baseItem.qty - 1);
+    } else if (baseItem) {
+      removeItem(baseItem.id);
+    }
   };
   const setField = (field: string, value: string) => setCustomer((current) => ({ ...current, [field]: value }));
 
@@ -107,15 +114,27 @@ export default function Home() {
       const response = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customer, items: Object.entries(cart).filter(([, quantity]) => quantity > 0).map(([id, quantity]) => ({ id, quantity })) }),
+        body: JSON.stringify({
+          customer,
+          items: items.map((item) => ({
+            id: item.dish.id,
+            quantity: item.qty,
+            selectedAddons: item.selectedAddons,
+            notes: item.notes
+          }))
+        }),
       });
       const saved = await response.json();
       if (!response.ok) throw new Error(saved.error || "Não foi possível registrar o pedido.");
-      const lines = dishes.filter((dish) => cart[keyOf(dish.id)]).map((dish) => `• ${cart[keyOf(dish.id)]}x ${dish.name} — ${money(dish.price * cart[keyOf(dish.id)])}`);
+      const lines = items.map((item) => {
+        const addons = item.selectedAddons.length > 0 ? `\n  + ${item.selectedAddons.map((addon) => `${addon.qty}x ${addon.name}`).join(", ")}` : "";
+        const notes = item.notes ? `\n  Obs.: ${item.notes}` : "";
+        return `• ${item.qty}x ${item.dish.name} — ${money(item.unitPrice * item.qty)}${addons}${notes}`;
+      });
       const payment = customer.payment === "pix" ? "PIX" : customer.payment === "cash" ? `Dinheiro${customer.change ? ` (troco para R$ ${customer.change})` : ""}` : "Cartão na entrega";
       const address = customer.delivery === "delivery" ? `📍 *Endereço:* ${customer.street}, ${customer.number}\n*Bairro:* ${customer.neighborhood}${customer.complement ? `\n*Complemento:* ${customer.complement}` : ""}${customer.reference ? `\n*Referência:* ${customer.reference}` : ""}` : "🏠 *Retirada no local*";
       const message = `🟠 *NOVO PEDIDO #${saved.code}*\n\n👤 *Cliente:* ${customer.name}\n📱 *Telefone:* ${customer.phone}\n\n${address}\n\n🍽️ *ITENS*\n${lines.join("\n")}\n\n💰 *Total: ${money(saved.totalCents / 100)}*\n💳 *Pagamento:* ${payment}${customer.notes ? `\n\n📝 *Observações:* ${customer.notes}` : ""}\n\nPedido enviado pelo cardápio da Comedoria da Tata.`;
-      setCart({});
+      clear();
       window.location.href = `https://wa.me/5581992743126?text=${encodeURIComponent(message)}`;
     } catch (error) {
       alert(error instanceof Error ? error.message : "Erro ao registrar o pedido.");
@@ -170,9 +189,11 @@ export default function Home() {
 
         {filtered.length ? <div className="dish-grid">
           {filtered.map((dish) => {
-            const quantity = cart[keyOf(dish.id)] || 0;
+            const baseItem = items.find((item) => keyOf(item.dish.id) === keyOf(dish.id) && item.selectedAddons.length === 0 && !item.notes);
+            const quantity = baseItem?.qty || 0;
             const unavailable = dish.available === false;
             return <article className={`dish-card${unavailable ? " unavailable" : ""}`} key={dish.id}>
+              {!unavailable && <Link className="dish-card-link" href={`/dishes/${dish.slug || dish.id}`} aria-label={`Ver detalhes de ${dish.name}`} />}
               <div className="dish-photo"><img src={dish.image} alt={dish.name} loading="lazy" /><span>{unavailable ? "Esgotado" : dish.tag}</span></div>
               <div className="dish-info">
                 <small>{dish.cat}</small><h3>{dish.name}</h3><p>{dish.desc}</p>
@@ -189,7 +210,7 @@ export default function Home() {
       <a className="whatsapp-float" href="https://wa.me/5581992743126" target="_blank" rel="noreferrer" aria-label="Falar com a Comedoria no WhatsApp"><b>WhatsApp</b><span>Atendimento</span></a>
       {count > 0 && !cartOpen && !checkoutOpen && <button className="mobile-bag" onClick={() => setCartOpen(true)}><span><b>{count} {count === 1 ? "item" : "itens"}</b><small>Ver minha sacola</small></span><strong>{money(total)}</strong></button>}
 
-      {cartOpen && <div className="overlay"><aside role="dialog" aria-modal="true" aria-label="Sua sacola"><button className="close" onClick={() => setCartOpen(false)} aria-label="Fechar sacola">×</button><p className="eyebrow">SEU PEDIDO</p><h2>Sacola</h2>{count === 0 ? <p className="empty-cart">Sua sacola está vazia.</p> : dishes.filter((dish) => cart[keyOf(dish.id)]).map((dish) => <div className="cart-line" key={dish.id}><span><b>{dish.name}</b><small>{money(dish.price)}</small></span><div><button onClick={() => changeQuantity(dish, -1)} aria-label={`Remover uma unidade de ${dish.name}`}>−</button><b>{cart[keyOf(dish.id)]}</b><button onClick={() => changeQuantity(dish, 1)} aria-label={`Adicionar uma unidade de ${dish.name}`}>+</button></div></div>)}<div className="cart-total"><span>Total</span><b>{money(total)}</b></div><button className="continue" disabled={!count} onClick={() => { setCartOpen(false); setCheckoutOpen(true); }}>Continuar para entrega</button></aside></div>}
+      {cartOpen && <div className="overlay"><aside role="dialog" aria-modal="true" aria-label="Sua sacola"><button className="close" onClick={() => setCartOpen(false)} aria-label="Fechar sacola">×</button><p className="eyebrow">SEU PEDIDO</p><h2>Sacola</h2>{count === 0 ? <p className="empty-cart">Sua sacola está vazia.</p> : items.map((item) => <div className="cart-line" key={item.id}><span><b>{item.dish.name}</b><small>{money(item.unitPrice)}{item.selectedAddons.length > 0 ? ` · ${item.selectedAddons.map((addon) => `${addon.qty}x ${addon.name}`).join(", ")}` : ""}</small></span><div><button onClick={() => item.qty > 1 ? updateQty(item.id, item.qty - 1) : removeItem(item.id)} aria-label={`Remover uma unidade de ${item.dish.name}`}>−</button><b>{item.qty}</b><button onClick={() => updateQty(item.id, item.qty + 1)} aria-label={`Adicionar uma unidade de ${item.dish.name}`}>+</button></div></div>)}<div className="cart-total"><span>Total</span><b>{money(total)}</b></div><button className="continue" disabled={!count} onClick={() => { setCartOpen(false); setCheckoutOpen(true); }}>Continuar para entrega</button></aside></div>}
 
       {checkoutOpen && <div className="overlay checkout-overlay"><aside role="dialog" aria-modal="true" aria-label="Finalizar pedido"><button className="close" onClick={() => setCheckoutOpen(false)} aria-label="Fechar checkout">×</button><button className="back" type="button" onClick={() => { setCheckoutOpen(false); setCartOpen(true); }}>← Voltar à sacola</button><p className="eyebrow">FINALIZAR PEDIDO</p><h2>Seus dados</h2><form className="checkout-form" onSubmit={submitOrder}>
         <label>Nome completo<input required autoComplete="name" value={customer.name} onChange={(event) => setField("name", event.target.value)} placeholder="Digite seu nome" /></label>

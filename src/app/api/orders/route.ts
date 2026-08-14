@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import supabaseAdmin from '@/lib/supabaseAdmin';
 import { generateOrderCode } from '@/lib/orders';
+import { normalizeDishAddons } from '@/lib/addons';
 
 const MAX_ITEMS = 30;
 
@@ -29,14 +30,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Complete o endereço de entrega.' }, { status: 400 });
     }
 
-    const quantities = new Map<string, number>();
-    for (const item of requested) {
-      const id = clean(item?.id, 80);
-      const quantity = Math.min(20, Math.max(1, Math.trunc(Number(item?.quantity) || 1)));
-      if (id) quantities.set(id, quantity);
-    }
+    const requestedLines = requested
+      .map((item: any) => ({
+        id: clean(item?.id, 80),
+        quantity: Math.min(20, Math.max(1, Math.trunc(Number(item?.quantity) || 1))),
+        selectedAddons: Array.isArray(item?.selectedAddons) ? item.selectedAddons : [],
+        notes: clean(item?.notes, 300)
+      }))
+      .filter((item: any) => item.id);
 
-    const ids = [...quantities.keys()];
+    const ids = [...new Set(requestedLines.map((item: any) => item.id))];
     if (!ids.length) return NextResponse.json({ error: 'Sua sacola está vazia.' }, { status: 400 });
 
     const { data: rows, error: dishesError } = await (supabaseAdmin as any)
@@ -50,12 +53,35 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Um prato não está mais disponível. Atualize o cardápio.' }, { status: 409 });
     }
 
-    const items = dishes.map((dish: any) => ({
-      dishId: dish.id,
-      name: clean(dish.name, 120),
-      price: Number(dish.price) || 0,
-      quantity: quantities.get(String(dish.id)) || 1
-    }));
+    const dishesById = new Map(dishes.map((dish: any) => [String(dish.id), dish]));
+    let addonValidationError = '';
+    const items = requestedLines.map((requestedItem: any) => {
+      const dish: any = dishesById.get(requestedItem.id);
+      const availableAddons = normalizeDishAddons(dish.extras ?? dish.addons ?? null);
+      const selectedAddons = availableAddons
+        .map((addon) => {
+          const selected = requestedItem.selectedAddons.find((item: any) => clean(item?.addonId, 80) === addon.id);
+          const qty = Math.min(addon.maxQty, Math.max(0, Math.trunc(Number(selected?.qty) || 0)));
+          return { addonId: addon.id, name: addon.name, price: addon.price, qty };
+        })
+        .filter((addon) => addon.qty > 0);
+
+      const missingRequired = availableAddons.some((addon) => addon.required && !selectedAddons.some((selected) => selected.addonId === addon.id));
+      if (missingRequired) addonValidationError = `Selecione os adicionais obrigatórios de ${clean(dish.name, 120)}.`;
+
+      const basePrice = Number(dish.price) || 0;
+      const addonsTotal = selectedAddons.reduce((sum, addon) => sum + addon.price * addon.qty, 0);
+      return {
+        dishId: dish.id,
+        name: clean(dish.name, 120),
+        price: basePrice + addonsTotal,
+        basePrice,
+        quantity: requestedItem.quantity,
+        selectedAddons,
+        notes: requestedItem.notes || undefined
+      };
+    });
+    if (addonValidationError) return NextResponse.json({ error: addonValidationError }, { status: 400 });
     const total = items.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
     const safeCustomer = {
       name,
