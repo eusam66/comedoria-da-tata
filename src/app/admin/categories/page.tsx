@@ -5,6 +5,7 @@ import { compressImage } from '../../../lib/imageCompress';
 import { toastSuccess, toastError } from '../../../lib/toast';
 import { slugify } from '../../../lib/slug';
 import { adminFetch } from '../../../lib/adminFetch';
+import AdminField from '../../../components/AdminField';
 
 type CategoryForm = {
   name: string;
@@ -19,7 +20,7 @@ const initialForm: CategoryForm = {
   slug: '',
   description: '',
   position: 0,
-  isActive: true
+  isActive: true,
 };
 
 export default function AdminCategoriesPage() {
@@ -46,7 +47,10 @@ export default function AdminCategoriesPage() {
     fd.append('file', compressed);
     fd.append('bucket', 'branding');
     fd.append('path', `categories/${Date.now()}_${compressed.name}`);
-    const json = await adminFetch<{ publicUrl: string }>('/api/upload', { method: 'POST', body: fd });
+    const json = await adminFetch<{ publicUrl: string }>('/api/upload', {
+      method: 'POST',
+      body: fd,
+    });
     return json.publicUrl;
   }
 
@@ -65,16 +69,19 @@ export default function AdminCategoriesPage() {
       const imageUrl = await uploadIfNeeded();
       const payload: any = {
         ...form,
-        slug: form.slug || slugify(form.name)
+        slug: form.slug || slugify(form.name),
       };
       if (imageUrl) payload.image = imageUrl;
       if (!imageUrl && removeCurrentImage && editingId) payload.image = null;
 
-      const json = await adminFetch<any>(editingId ? `/api/admin/categories/${editingId}` : '/api/admin/categories', {
-        method: editingId ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const json = await adminFetch<any>(
+        editingId ? `/api/admin/categories/${editingId}` : '/api/admin/categories',
+        {
+          method: editingId ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
 
       if (editingId) {
         setItems((current) => current.map((item) => (item.id === editingId ? json : item)));
@@ -97,7 +104,7 @@ export default function AdminCategoriesPage() {
       slug: category.slug || '',
       description: category.description || '',
       position: Number(category.position || 0),
-      isActive: category.is_active ?? true
+      isActive: category.is_active ?? true,
     });
     setFile(null);
     setCurrentImageUrl(category.image_url || null);
@@ -121,49 +128,84 @@ export default function AdminCategoriesPage() {
       <h1 className="mb-4 text-2xl font-display">Categorias da loja</h1>
 
       <div className="mb-6 rounded-2xl bg-white p-4 shadow">
-        <h2 className="mb-4 text-lg font-semibold">{editingId ? 'Editar categoria' : 'Nova categoria'}</h2>
+        <h2 className="mb-4 text-lg font-semibold">
+          {editingId ? 'Editar categoria' : 'Nova categoria'}
+        </h2>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="space-y-3">
-            <input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Nome da categoria"
-              className="w-full rounded border p-3"
-            />
-            <input
-              value={form.slug}
-              onChange={(e) => setForm({ ...form, slug: e.target.value })}
-              placeholder="Slug"
-              className="w-full rounded border p-3"
-            />
-            <textarea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Descrição"
-              className="min-h-[120px] w-full rounded border p-3"
-            />
+            <AdminField
+              label="Nome da categoria"
+              help="Nome do grupo exibido no cardápio, ex.: Pratos principais."
+            >
+              <input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Ex.: Pratos principais"
+                className="w-full rounded border p-3"
+              />
+            </AdminField>
+            <AdminField
+              label="Slug"
+              help="Endereço amigável da categoria; deixe em branco para gerar automaticamente."
+            >
+              <input
+                value={form.slug}
+                onChange={(e) => setForm({ ...form, slug: e.target.value })}
+                placeholder="Ex.: pratos-principais"
+                className="w-full rounded border p-3"
+              />
+            </AdminField>
+            <AdminField
+              label="Descrição"
+              help="Explique brevemente quais pratos fazem parte desta categoria."
+            >
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="Ex.: Refeições completas para o almoço"
+                className="min-h-[120px] w-full rounded border p-3"
+              />
+            </AdminField>
           </div>
           <div className="space-y-3">
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={form.position}
-              onChange={(e) => setForm({ ...form, position: Number(e.target.value || 0) })}
-              placeholder="Ordem de exibição"
-              className="w-full rounded border p-3"
-            />
-            <label className="flex items-center gap-2 rounded border p-3">
+            <AdminField label="Posição no cardápio" help="0 aparece antes de 1, 1 antes de 2...">
               <input
-                type="checkbox"
-                checked={form.isActive}
-                onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                type="number"
+                min="0"
+                step="1"
+                value={form.position}
+                onChange={(e) => setForm({ ...form, position: Number(e.target.value || 0) })}
+                placeholder="Ex.: 0"
+                className="w-full rounded border p-3"
               />
-              <span>Categoria disponível na loja</span>
+            </AdminField>
+            <label className="block rounded border p-3">
+              <span className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={form.isActive}
+                  onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                />
+                <span>Categoria disponível na loja</span>
+              </span>
+              <span className="mt-1 block text-xs text-gray-500">
+                Desmarque para ocultar a categoria e seus pratos do cardápio.
+              </span>
             </label>
             <label className="block rounded border p-3">
               <span className="mb-2 block text-sm font-medium">Imagem da categoria</span>
-              <input type="file" accept="image/*" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setRemoveCurrentImage(false); }} className="w-full" />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  setFile(e.target.files?.[0] ?? null);
+                  setRemoveCurrentImage(false);
+                }}
+                className="w-full"
+              />
+              <span className="mt-1 block text-xs text-gray-500">
+                Imagem usada para representar a categoria no cardápio.
+              </span>
             </label>
             {(currentImageUrl || file) && (
               <div className="rounded border p-3">
@@ -182,7 +224,11 @@ export default function AdminCategoriesPage() {
                 {editingId && currentImageUrl && (
                   <button
                     type="button"
-                    onClick={() => { setCurrentImageUrl(null); setFile(null); setRemoveCurrentImage(true); }}
+                    onClick={() => {
+                      setCurrentImageUrl(null);
+                      setFile(null);
+                      setRemoveCurrentImage(true);
+                    }}
                     className="mt-3 rounded border border-red-200 px-3 py-2 text-sm text-red-600"
                   >
                     Excluir foto atual
@@ -193,7 +239,11 @@ export default function AdminCategoriesPage() {
           </div>
         </div>
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-          <button type="button" onClick={submit} className="rounded bg-brand-dark px-4 py-3 text-white">
+          <button
+            type="button"
+            onClick={submit}
+            className="rounded bg-brand-dark px-4 py-3 text-white"
+          >
             {editingId ? 'Salvar categoria' : 'Criar categoria'}
           </button>
           {editingId && (
@@ -206,27 +256,51 @@ export default function AdminCategoriesPage() {
       </div>
 
       <div className="space-y-3">
-        {loading && <div className="rounded-2xl bg-white p-4 text-sm text-gray-600 shadow">Carregando categorias...</div>}
-        {!loading && items.length === 0 && !error && <div className="rounded-2xl bg-white p-4 text-sm text-gray-600 shadow">Nenhuma categoria cadastrada.</div>}
+        {loading && (
+          <div className="rounded-2xl bg-white p-4 text-sm text-gray-600 shadow">
+            Carregando categorias...
+          </div>
+        )}
+        {!loading && items.length === 0 && !error && (
+          <div className="rounded-2xl bg-white p-4 text-sm text-gray-600 shadow">
+            Nenhuma categoria cadastrada.
+          </div>
+        )}
         {items.map((category) => (
           <div key={category.id} className="rounded-2xl bg-white p-4 shadow">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-lg font-semibold">{category.name}</h3>
-                  <span className={`rounded-full px-2 py-1 text-xs ${category.is_active === false ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                  <span
+                    className={`rounded-full px-2 py-1 text-xs ${
+                      category.is_active === false
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-green-100 text-green-700'
+                    }`}
+                  >
                     {category.is_active === false ? 'Oculta' : 'Ativa'}
                   </span>
                 </div>
                 <div className="text-sm text-gray-600">Slug: {category.slug || '—'}</div>
                 <div className="text-sm text-gray-600">Ordem: {category.position ?? 0}</div>
-                <div className="text-sm text-gray-600">{category.description || 'Sem descrição'}</div>
+                <div className="text-sm text-gray-600">
+                  {category.description || 'Sem descrição'}
+                </div>
               </div>
               <div className="flex flex-col gap-2 sm:w-auto">
-                <button type="button" onClick={() => startEdit(category)} className="rounded border px-4 py-2">
+                <button
+                  type="button"
+                  onClick={() => startEdit(category)}
+                  className="rounded border px-4 py-2"
+                >
                   Editar
                 </button>
-                <button type="button" onClick={() => remove(category.id)} className="rounded bg-red-500 px-4 py-2 text-white">
+                <button
+                  type="button"
+                  onClick={() => remove(category.id)}
+                  className="rounded bg-red-500 px-4 py-2 text-white"
+                >
                   Excluir
                 </button>
               </div>

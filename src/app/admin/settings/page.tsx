@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { toastSuccess, toastError } from '../../../lib/toast';
 import { adminFetch } from '../../../lib/adminFetch';
+import AdminField from '../../../components/AdminField';
 
 type StoreSettingsForm = {
   name: string;
@@ -26,7 +27,7 @@ const initialForm: StoreSettingsForm = {
   deliveryFee: '0,00',
   pickupEnabled: true,
   deliveryEnabled: true,
-  orderNotice: ''
+  orderNotice: '',
 };
 
 export default function AdminSettings() {
@@ -54,7 +55,7 @@ export default function AdminSettings() {
       await adminFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(form),
       });
       toastSuccess('Configurações salvas');
     } catch (e: any) {
@@ -74,29 +75,129 @@ export default function AdminSettings() {
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="space-y-3">
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nome da loja" className="w-full rounded border p-3" />
-              <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Telefone" className="w-full rounded border p-3" />
-              <input value={form.whatsappPhone} onChange={(e) => setForm({ ...form, whatsappPhone: e.target.value })} placeholder="WhatsApp da loja" className="w-full rounded border p-3" />
-              <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Endereço" className="w-full rounded border p-3" />
-              <input value={form.neighborhood} onChange={(e) => setForm({ ...form, neighborhood: e.target.value })} placeholder="Bairro" className="w-full rounded border p-3" />
+              <AdminField
+                label="Nome da loja"
+                help="Nome exibido aos clientes no site e nos pedidos."
+              >
+                <input
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="Ex.: Comedoria da Tata"
+                  className="w-full rounded border p-3"
+                />
+              </AdminField>
+              <AdminField
+                label="Telefone"
+                help="Número usado pelos clientes para entrar em contato com a loja."
+              >
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="Ex.: (11) 3333-4444"
+                  className="w-full rounded border p-3"
+                />
+              </AdminField>
+              <AdminField
+                label="WhatsApp da loja"
+                help="Número que receberá os pedidos enviados pelo WhatsApp, com DDD."
+              >
+                <input
+                  type="tel"
+                  value={form.whatsappPhone}
+                  onChange={(e) => setForm({ ...form, whatsappPhone: e.target.value })}
+                  placeholder="Ex.: (11) 99999-8888"
+                  className="w-full rounded border p-3"
+                />
+              </AdminField>
+              <AdminField label="Endereço" help="Rua, número e complemento do endereço da loja.">
+                <input
+                  value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  placeholder="Ex.: Rua das Flores, 123"
+                  className="w-full rounded border p-3"
+                />
+              </AdminField>
+              <AdminField label="Bairro" help="Bairro onde a loja está localizada.">
+                <input
+                  value={form.neighborhood}
+                  onChange={(e) => setForm({ ...form, neighborhood: e.target.value })}
+                  placeholder="Ex.: Centro"
+                  className="w-full rounded border p-3"
+                />
+              </AdminField>
             </div>
             <div className="space-y-3">
-              <input value={form.deliveryTime} onChange={(e) => setForm({ ...form, deliveryTime: e.target.value })} placeholder="Tempo médio de entrega" className="w-full rounded border p-3" />
-              <input value={form.deliveryFee} onChange={(e) => setForm({ ...form, deliveryFee: e.target.value })} placeholder="Taxa de entrega" className="w-full rounded border p-3" />
-              <textarea value={form.orderNotice} onChange={(e) => setForm({ ...form, orderNotice: e.target.value })} placeholder="Aviso para os clientes" className="min-h-[140px] w-full rounded border p-3" />
-              <label className="flex items-center gap-2 rounded border p-3">
-                <input type="checkbox" checked={form.deliveryEnabled} onChange={(e) => setForm({ ...form, deliveryEnabled: e.target.checked })} />
-                <span>Delivery disponível</span>
+              <AdminField
+                label="Tempo médio de entrega"
+                help="Estimativa mostrada ao cliente antes de finalizar o pedido."
+              >
+                <input
+                  value={form.deliveryTime}
+                  onChange={(e) => setForm({ ...form, deliveryTime: e.target.value })}
+                  placeholder="Ex.: 30–45 minutos"
+                  className="w-full rounded border p-3"
+                />
+              </AdminField>
+              <AdminField
+                label="Taxa de entrega"
+                help="Valor cobrado pela entrega; use 0,00 quando for grátis."
+              >
+                <input
+                  inputMode="decimal"
+                  value={form.deliveryFee}
+                  onChange={(e) => setForm({ ...form, deliveryFee: e.target.value })}
+                  placeholder="Ex.: 8,00"
+                  className="w-full rounded border p-3"
+                />
+              </AdminField>
+              <AdminField
+                label="Aviso para os clientes"
+                help="Mensagem importante exibida durante o pedido, como horários ou regiões atendidas."
+              >
+                <textarea
+                  value={form.orderNotice}
+                  onChange={(e) => setForm({ ...form, orderNotice: e.target.value })}
+                  placeholder="Ex.: Pedidos para o almoço devem ser feitos até as 11h"
+                  className="min-h-[140px] w-full rounded border p-3"
+                />
+              </AdminField>
+              <label className="block rounded border p-3">
+                <span className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={form.deliveryEnabled}
+                    onChange={(e) => setForm({ ...form, deliveryEnabled: e.target.checked })}
+                  />
+                  <span>Delivery disponível</span>
+                </span>
+                <span className="mt-1 block text-xs text-gray-500">
+                  Desmarque para impedir temporariamente novos pedidos com entrega.
+                </span>
               </label>
-              <label className="flex items-center gap-2 rounded border p-3">
-                <input type="checkbox" checked={form.pickupEnabled} onChange={(e) => setForm({ ...form, pickupEnabled: e.target.checked })} />
-                <span>Retirada disponível</span>
+              <label className="block rounded border p-3">
+                <span className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={form.pickupEnabled}
+                    onChange={(e) => setForm({ ...form, pickupEnabled: e.target.checked })}
+                  />
+                  <span>Retirada disponível</span>
+                </span>
+                <span className="mt-1 block text-xs text-gray-500">
+                  Desmarque para impedir temporariamente pedidos para retirada na loja.
+                </span>
               </label>
             </div>
           </div>
         )}
         <div className="mt-4">
-          <button type="button" onClick={save} disabled={saving || loading} className="rounded bg-brand-dark px-4 py-3 text-white disabled:opacity-60">
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving || loading}
+            className="rounded bg-brand-dark px-4 py-3 text-white disabled:opacity-60"
+          >
             {saving ? 'Salvando...' : 'Salvar configurações'}
           </button>
         </div>
