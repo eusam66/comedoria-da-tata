@@ -52,3 +52,4 @@ export default function Header({ open, avgTime }: { open: boolean; avgTime: stri
     </header>
   );
 }
+

@@ -125,3 +125,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Não foi possível registrar o pedido agora.' }, { status: 500 });
   }
 }
+

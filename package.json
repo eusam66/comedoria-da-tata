@@ -9,7 +9,8 @@
     "lint": "next lint",
     "format": "prettier --write .",
     "db:create-buckets": "node scripts/create_buckets.js",
-    "db:seed": "node scripts/seed.js"
+    "db:seed": "node scripts/seed.js",
+    "test:hours": "node --experimental-strip-types --test src/lib/storeHours.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.28.0",
@@ -32,3 +33,4 @@
     "typescript": "^5.0.0"
   }
 }
+
