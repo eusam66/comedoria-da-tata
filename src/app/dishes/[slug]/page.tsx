@@ -18,6 +18,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: `${dish.name} — Comedoria da Tata`,
     description: dish.description ?? 'Prato especial da Comedoria da Tata',
+    alternates: {
+      canonical: `/dishes/${dish.slug}`
+    },
     openGraph: {
       title: `${dish.name} — Comedoria da Tata`,
       description: dish.description ?? 'Prato especial da Comedoria da Tata',
@@ -46,16 +49,11 @@ export default async function DishPage({ params }: { params: Promise<{ slug: str
   const dish = await getDishBySlug(resolvedParams.slug);
   if (!dish) return notFound();
 
-  const open = true;
-  const avgTime = '30-45 min';
-
   return (
-    <main className="min-h-screen flex flex-col bg-white">
-      <Header open={open} avgTime={avgTime} />
-      <div className="container mx-auto px-4 py-6 flex-1">
-        <div className="bg-white rounded-lg p-4 md:p-6 shadow-md">
-          <DishDetailClient dish={dish} />
-        </div>
+    <main className="flex min-h-screen flex-col bg-brand-beige">
+      <Header open avgTime="30-45 min" />
+      <div className="container mx-auto flex-1 px-3 py-4 sm:px-4 sm:py-8">
+        <DishDetailClient dish={dish} />
       </div>
       <Footer />
     </main>

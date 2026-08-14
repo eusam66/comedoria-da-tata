@@ -211,7 +211,7 @@ export async function getDishBySlug(slug: string): Promise<Dish | undefined> {
     return mockDishes.find((dish) => dish.slug === slug);
   }
 
-  const { data, error } = await (supabase as any).from('dishes').select('*').eq('slug', slug).limit(1).maybeSingle();
+  const { data, error } = await (supabase as any).from('dishes').select('*, categories(name)').eq('slug', slug).limit(1).maybeSingle();
   if (error) {
     console.error('getDishBySlug error', error);
     return mockDishes.find((dish) => dish.slug === slug);

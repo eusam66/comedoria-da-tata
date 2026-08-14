@@ -1,235 +1,163 @@
 'use client';
+
 import React, { useMemo, useState } from 'react';
-import Link from 'next/link';
-import DishGallery from './DishGallery';
-import { useCart } from './CartContext';
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { Dish } from '../lib/api';
 import { DishAddon, normalizeDishAddons, SelectedAddon, selectedAddonsTotal } from '../lib/addons';
-import { toastSuccess, toastError } from '../lib/toast';
+import { toastError, toastSuccess } from '../lib/toast';
+import { useCart } from './CartContext';
 
-export default function DishDetailClient({ dish, onAdd }: { dish: any; onAdd?: (payload: any) => void }) {
-  const [qty, setQty] = useState(1);
-  const [notes, setNotes] = useState('');
-  const [touchedAddons, setTouchedAddons] = useState(false);
-  const [added, setAdded] = useState(false);
+export default function DishDetailClient({ dish }: { dish: Dish }) {
+  const router = useRouter();
   const { addItem } = useCart();
-  const addons = useMemo<DishAddon[]>(() => normalizeDishAddons(dish.addons ?? dish.extras ?? null), [dish.addons, dish.extras]);
-  const [addonQtyMap, setAddonQtyMap] = useState<Record<string, number>>(
-    () =>
-      addons.reduce(
-        (acc, addon) => ({ ...acc, [addon.id]: addon.required ? 1 : 0 }),
-        {}
-      )
+  const [qty, setQty] = useState(1);
+  const [sharing, setSharing] = useState(false);
+  const addons = useMemo<DishAddon[]>(() => normalizeDishAddons(dish.addons), [dish.addons]);
+  const [addonQtyMap, setAddonQtyMap] = useState<Record<string, number>>(() =>
+    addons.reduce((current, addon) => ({ ...current, [addon.id]: addon.required ? 1 : 0 }), {})
   );
-
 
   const selectedAddons = useMemo<SelectedAddon[]>(
-    () =>
-      addons
-        .map((addon) => ({
-          addonId: addon.id,
-          name: addon.name,
-          price: addon.price,
-          qty: Math.max(0, addonQtyMap[addon.id] || 0)
-        }))
-        .filter((addon) => addon.qty > 0),
+    () => addons.map((addon) => ({
+      addonId: addon.id,
+      name: addon.name,
+      price: addon.price,
+      qty: Math.max(0, addonQtyMap[addon.id] || 0)
+    })).filter((addon) => addon.qty > 0),
     [addons, addonQtyMap]
   );
 
-  const requiredMissing = useMemo(
-    () => addons.filter((addon) => addon.required && (addonQtyMap[addon.id] || 0) < 1),
-    [addons, addonQtyMap]
-  );
+  const total = (Number(dish.price) + selectedAddonsTotal(selectedAddons)) * qty;
 
-  const addonsUnitTotal = useMemo(() => selectedAddonsTotal(selectedAddons), [selectedAddons]);
-  const lineTotal = (Number(dish.price) + addonsUnitTotal) * qty;
-
-  function changeAddonQty(addonId: string, nextQty: number, maxQty: number) {
-    const safeQty = Math.max(0, Math.min(maxQty, nextQty));
-    setTouchedAddons(true);
+  function changeAddonQty(addon: DishAddon, nextQty: number) {
+    const minimum = addon.required ? 1 : 0;
     setAddonQtyMap((current) => ({
       ...current,
-      [addonId]: safeQty
+      [addon.id]: Math.max(minimum, Math.min(addon.maxQty, nextQty))
     }));
   }
 
   function handleAdd() {
-    if (requiredMissing.length > 0) {
-      setTouchedAddons(true);
-      toastError('Selecione os adicionais obrigatórios antes de adicionar ao carrinho.');
-      return;
-    }
+    addItem(dish, qty, { selectedAddons });
+    toastSuccess(`${qty}x ${dish.name} adicionado à sacola.`);
+  }
 
-    const payload = { dishId: dish.id, qty, notes, selectedAddons };
-    if (onAdd) {
-      onAdd(payload);
-    } else {
-      try {
-        addItem(dish, qty, { notes, selectedAddons });
-        setAdded(true);
-        toastSuccess(`${dish.name} adicionado ao carrinho!`);
-        setTimeout(() => setAdded(false), 2000);
-      } catch (e) {
-        console.error('add to cart failed', e);
-        toastError('Não foi possível adicionar ao carrinho. Tente novamente.');
+  async function handleShare() {
+    const url = window.location.href;
+    const shareData = {
+      title: dish.name,
+      text: dish.description || `Veja ${dish.name} na Comedoria da Tata`,
+      url
+    };
+
+    setSharing(true);
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(url);
+        toastSuccess('Link do prato copiado!');
       }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      try {
+        await navigator.clipboard.writeText(url);
+        toastSuccess('Link do prato copiado!');
+      } catch {
+        toastError('Não foi possível compartilhar o prato.');
+      }
+    } finally {
+      setSharing(false);
     }
   }
 
   return (
-    <div className="relative pb-28">
-      {/* Back navigation */}
-      <div className="mb-6">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 rounded-full border border-brand-brown/15 bg-white px-4 py-2 text-sm font-semibold text-brand-brown shadow-sm transition hover:bg-brand-beige hover:text-brand-dark"
+    <article className="mx-auto grid max-w-5xl overflow-hidden rounded-[2rem] border border-brand-brown/10 bg-white shadow-[0_24px_70px_-38px_rgba(42,20,15,0.5)] lg:grid-cols-2">
+      <div className="relative">
+        {dish.image ? (
+          <div className="relative aspect-[4/3] w-full bg-brand-beige sm:aspect-[16/10] lg:aspect-auto lg:h-full lg:min-h-[42rem]">
+            <Image src={dish.image} alt={dish.name} fill priority sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
+          </div>
+        ) : (
+          <div className="flex aspect-[4/3] items-center justify-center bg-brand-beige text-sm font-semibold text-brand-brown">Imagem indisponível</div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => (window.history.length > 1 ? router.back() : router.push('/'))}
+          aria-label="Voltar"
+          className="absolute left-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-brand-dark shadow-lg backdrop-blur transition hover:bg-brand-beige"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <path d="M19 12H5M12 5l-7 7 7 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M19 12H5m7-7-7 7 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          Voltar ao cardápio
-        </Link>
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div>
-          {dish.image ? (
-            <DishGallery images={[dish.image]} />
-          ) : (
-            <div className="flex h-72 w-full items-center justify-center rounded-[1.5rem] border border-brand-brown/10 bg-brand-beige/70 text-sm font-semibold text-brand-brown">
-              Imagem indisponível
+      <div className="p-5 sm:p-7 lg:p-10">
+        {dish.categoryName && <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-orange">{dish.categoryName}</p>}
+        <h1 className="mt-2 font-display text-3xl leading-tight text-brand-dark sm:text-4xl">{dish.name}</h1>
+        {dish.description && <p className="mt-4 leading-7 text-brand-brown/80">{dish.description}</p>}
+
+        <div className="mt-6 flex flex-wrap items-end justify-between gap-4 border-y border-brand-brown/10 py-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand-brown/60">Preço</p>
+            <p className="mt-1 text-2xl font-bold text-brand-dark">R$ {Number(dish.price).toFixed(2)}</p>
+          </div>
+          {dish.servings != null && (
+            <div className="text-right">
+              <p className="text-xs font-semibold uppercase tracking-wider text-brand-brown/60">Serve</p>
+              <p className="mt-1 font-semibold text-brand-dark">{dish.servings} {dish.servings === 1 ? 'pessoa' : 'pessoas'}</p>
             </div>
           )}
         </div>
 
-        <div className="flex flex-col">
-          <div className="flex items-start gap-4">
-            <div className="flex-1">
-              <h1 className="text-2xl md:text-3xl font-display text-brand-dark">{dish.name}</h1>
-              {dish.code && (
-                <div className="mt-1 text-xs font-mono text-brand-brown/50">Cód. {dish.code}</div>
-              )}
-              <p className="mt-2 text-sm leading-6 text-brand-brown/80">{dish.description}</p>
-              <div className="flex gap-2 mt-3 items-center flex-wrap">
-                {dish.isNew && (
-                  <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">Novo</span>
-                )}
-                {dish.popular && (
-                  <span className="inline-flex items-center rounded-full bg-brand-orange/10 px-3 py-1 text-xs font-semibold text-brand-orange">Mais pedido</span>
-                )}
-              </div>
-            </div>
-            <div className="text-right shrink-0">
-              <div className="text-2xl font-bold text-brand-brown">R$ {Number(dish.price).toFixed(2)}</div>
-              <div className="mt-1 text-sm text-brand-brown/60">Serve {dish.servings ?? 1} pessoa{(dish.servings ?? 1) > 1 ? 's' : ''}</div>
-            </div>
-          </div>
+        {Array.isArray(dish.ingredients) && dish.ingredients.length > 0 && (
+          <section className="mt-6" aria-labelledby="acompanhamentos-title">
+            <h2 id="acompanhamentos-title" className="text-sm font-bold uppercase tracking-wider text-brand-brown/70">Acompanhamentos</h2>
+            <p className="mt-2 leading-7 text-brand-dark">{dish.ingredients.join(', ')}</p>
+          </section>
+        )}
 
-          {Array.isArray(dish.ingredients) && dish.ingredients.length > 0 && (
-            <div className="mt-5">
-              <h4 className="text-sm font-semibold uppercase tracking-wider text-brand-brown/60">Ingredientes</h4>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {dish.ingredients.map((ing: string, i: number) => (
-                  <span key={i} className="rounded-full border border-brand-brown/10 bg-brand-beige/70 px-3 py-1 text-xs text-brand-brown">{ing}</span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {addons.length > 0 && (
-            <div className="mt-6">
-              <h4 className="text-sm font-semibold uppercase tracking-wider text-brand-brown/60 mb-3">Adicionais</h4>
-              <div className="space-y-3">
-                {addons.map((addon) => {
-                  const addonQty = addonQtyMap[addon.id] || 0;
-                  const isError = touchedAddons && addon.required && addonQty < 1;
-                  return (
-                    <div
-                      key={addon.id}
-                      className={`rounded-[1.25rem] border px-4 py-3 transition ${isError ? 'border-red-300 bg-red-50' : 'border-brand-brown/10 bg-white/70'}`}
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-brand-dark">{addon.name}</span>
-                            {addon.required && (
-                              <span className="rounded-full bg-brand-orange/10 px-2 py-0.5 text-[10px] font-semibold text-brand-orange">Obrigatório</span>
-                            )}
-                          </div>
-                          <div className="text-xs text-brand-brown/60 mt-0.5">
-                            {addon.price > 0 ? `+ R$ ${addon.price.toFixed(2)}` : 'Incluso'} • máx. {addon.maxQty}
-                          </div>
-                        </div>
-                        <div className="flex items-center overflow-hidden rounded-full border border-brand-brown/10 bg-brand-beige/50">
-                          <button
-                            aria-label={`Diminuir ${addon.name}`}
-                            onClick={() => changeAddonQty(addon.id, addonQty - 1, addon.maxQty)}
-                            className="px-3 py-2 bg-white text-lg text-brand-dark transition hover:bg-brand-beige disabled:opacity-40"
-                            disabled={addonQty === 0}
-                          >
-                            −
-                          </button>
-                          <div className="min-w-[2.5rem] px-3 text-center text-sm font-semibold text-brand-dark">{addonQty}</div>
-                          <button
-                            aria-label={`Aumentar ${addon.name}`}
-                            onClick={() => changeAddonQty(addon.id, addonQty + 1, addon.maxQty)}
-                            className="px-3 py-2 bg-white text-lg text-brand-dark transition hover:bg-brand-beige disabled:opacity-40"
-                            disabled={addonQty >= addon.maxQty}
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                      {isError && (
-                        <p className="mt-1 text-xs text-red-600">Este adicional é obrigatório.</p>
-                      )}
+        {addons.length > 0 && (
+          <section className="mt-7" aria-labelledby="adicionais-title">
+            <h2 id="adicionais-title" className="text-sm font-bold uppercase tracking-wider text-brand-brown/70">Adicionais</h2>
+            <div className="mt-3 space-y-3">
+              {addons.map((addon) => {
+                const addonQty = addonQtyMap[addon.id] || 0;
+                return (
+                  <div key={addon.id} className="flex items-center justify-between gap-3 rounded-2xl border border-brand-brown/10 bg-brand-beige/45 p-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-brand-dark">{addon.name}</p>
+                      <p className="mt-0.5 text-sm text-brand-brown/65">{addon.price > 0 ? `+ R$ ${addon.price.toFixed(2)}` : 'Incluso'}{addon.required ? ' · obrigatório' : ''}</p>
                     </div>
-                  );
-                })}
-              </div>
-              {touchedAddons && requiredMissing.length > 0 && (
-                <p className="mt-2 text-sm text-red-600">
-                  Selecione os adicionais obrigatórios: {requiredMissing.map((addon) => addon.name).join(', ')}.
-                </p>
-              )}
+                    <div className="flex shrink-0 items-center overflow-hidden rounded-full border border-brand-brown/15 bg-white">
+                      <button type="button" aria-label={`Diminuir ${addon.name}`} onClick={() => changeAddonQty(addon, addonQty - 1)} disabled={addonQty <= (addon.required ? 1 : 0)} className="h-10 w-10 text-lg text-brand-dark disabled:opacity-35">−</button>
+                      <span className="min-w-8 text-center text-sm font-bold text-brand-dark">{addonQty}</span>
+                      <button type="button" aria-label={`Aumentar ${addon.name}`} onClick={() => changeAddonQty(addon, addonQty + 1)} disabled={addonQty >= addon.maxQty} className="h-10 w-10 text-lg text-brand-dark disabled:opacity-35">+</button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          )}
+          </section>
+        )}
 
-          <div className="mt-6 space-y-4">
-            <div>
-              <label className="block text-sm font-semibold text-brand-brown mb-2">Observações</label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Ex.: sem cebola, pouco sal, ponto da carne..."
-                className="h-24 w-full rounded-[1.25rem] border border-brand-brown/10 bg-brand-beige/50 p-3 text-sm text-brand-dark outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/20 resize-none"
-              />
-            </div>
+        <div className="mt-8">
+          <p className="text-sm font-bold text-brand-brown">Quantidade</p>
+          <div className="mt-2 inline-flex items-center overflow-hidden rounded-full border border-brand-brown/15 bg-brand-beige/50">
+            <button type="button" aria-label="Diminuir quantidade" onClick={() => setQty((current) => Math.max(1, current - 1))} disabled={qty === 1} className="h-12 w-12 bg-white text-xl text-brand-dark disabled:opacity-35">−</button>
+            <span className="min-w-12 text-center font-bold text-brand-dark">{qty}</span>
+            <button type="button" aria-label="Aumentar quantidade" onClick={() => setQty((current) => current + 1)} className="h-12 w-12 bg-white text-xl text-brand-dark">+</button>
           </div>
         </div>
-      </div>
 
-      {/* Sticky bottom bar */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-brand-brown/10 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_-10px_rgba(42,20,15,0.20)] backdrop-blur-xl md:px-0">
-        <div className="container mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center overflow-hidden rounded-full border border-brand-brown/10 bg-brand-beige/50">
-              <button aria-label="Diminuir quantidade" onClick={() => setQty((q) => Math.max(1, q - 1))} className="px-3 py-2 bg-white text-xl text-brand-dark transition hover:bg-brand-beige disabled:opacity-40" disabled={qty <= 1}>−</button>
-              <div className="min-w-[2.5rem] px-3 text-center text-sm font-semibold text-brand-dark">{qty}</div>
-              <button aria-label="Aumentar quantidade" onClick={() => setQty((q) => q + 1)} className="px-3 py-2 bg-white text-xl text-brand-dark transition hover:bg-brand-beige">+</button>
-            </div>
-            <div>
-              <div className="text-xs text-brand-brown/60">Total</div>
-              <div className="text-lg font-bold text-brand-dark">R$ {lineTotal.toFixed(2)}</div>
-            </div>
-          </div>
-          <button
-            onClick={handleAdd}
-            className={`rounded-full px-6 py-3 font-semibold text-white shadow-lg transition ${added ? 'bg-emerald-600 shadow-emerald-600/20' : 'bg-brand-orange shadow-brand-orange/20 hover:bg-brand-dark'}`}
-          >
-            {added ? '✓ Adicionado!' : 'Adicionar ao carrinho'}
-          </button>
+        <div className="mt-7 grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={handleAdd} className="min-h-14 rounded-full bg-brand-orange px-6 py-3 font-bold text-white shadow-lg shadow-brand-orange/20 transition hover:bg-brand-dark">Adicionar à sacola · R$ {total.toFixed(2)}</button>
+          <button type="button" onClick={handleShare} disabled={sharing} className="min-h-14 rounded-full border border-brand-brown/20 bg-white px-6 py-3 font-bold text-brand-brown transition hover:bg-brand-beige disabled:opacity-60">{sharing ? 'Compartilhando…' : 'Compartilhar prato'}</button>
         </div>
       </div>
-    </div>
+    </article>
   );
 }
