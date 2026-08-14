@@ -70,7 +70,22 @@ export type OrderRow = {
   items: any; // jsonb with items array
   total: number;
   status: string;
-  customer?: any | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  customer_address?: string | null;
+  metadata?: {
+    name?: string;
+    phone?: string;
+    delivery?: 'delivery' | 'pickup';
+    street?: string;
+    number?: string;
+    neighborhood?: string;
+    complement?: string;
+    reference?: string;
+    payment?: 'pix' | 'card' | 'cash';
+    change?: string;
+    notes?: string;
+  } | null;
   created_at?: string | null;
 };
 

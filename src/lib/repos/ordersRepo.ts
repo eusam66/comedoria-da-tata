@@ -13,11 +13,27 @@ export const ordersRepo = {
     if (error) throw error;
     return (data as OrderRow) ?? null;
   },
-  async create(payload: { items: any; customer?: any }) {
+  async create(payload: { items: any; customer?: OrderRow['metadata'] }) {
     const id = crypto.randomUUID();
     const code = generateOrderCode();
     const total = (payload.items || []).reduce((s:any, it:any) => s + (it.price || 0) * (it.quantity || 1), 0);
-    const row = { id, code, items: payload.items, total, status: 'Novo', customer: payload.customer || null };
+    const customer = payload.customer || {};
+    const customerAddress = customer.delivery === 'pickup'
+      ? 'Retirada no local'
+      : [customer.street, customer.number, customer.neighborhood, customer.complement]
+          .filter(Boolean)
+          .join(', ');
+    const row = {
+      id,
+      code,
+      customer_name: customer.name || null,
+      customer_phone: customer.phone || null,
+      customer_address: customerAddress || null,
+      items: payload.items,
+      total,
+      status: 'Novo',
+      metadata: payload.customer || null
+    };
     const { data, error } = await supabase.from('orders').insert([row]).select().single();
     if (error) throw error;
     return data as OrderRow;
