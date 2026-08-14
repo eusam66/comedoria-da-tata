@@ -13,13 +13,39 @@ const STATUSES = [
   'Cancelado',
 ] as const;
 
+type AdminOrder = {
+  id: string;
+  code: string;
+  items: Array<{ dishId?: string; name: string; price: number; quantity: number; notes?: string }>;
+  total: number;
+  status: (typeof STATUSES)[number];
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  customer_address?: string | null;
+  metadata?: {
+    payment?: 'pix' | 'card' | 'cash';
+    change?: string;
+    notes?: string;
+    reference?: string;
+  } | null;
+};
+
+function paymentLabel(order: AdminOrder) {
+  if (order.metadata?.payment === 'cash') {
+    return `Dinheiro${order.metadata.change ? ` — troco para R$ ${order.metadata.change}` : ''}`;
+  }
+  if (order.metadata?.payment === 'card') return 'Cartão na entrega';
+  if (order.metadata?.payment === 'pix') return 'PIX';
+  return null;
+}
+
 export default function AdminOrdersPage() {
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    adminFetch<any[]>('/api/admin/orders')
+    adminFetch<AdminOrder[]>('/api/admin/orders')
       .then((d) => setOrders(d))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -32,7 +58,7 @@ export default function AdminOrdersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
-      const data = await adminFetch<any[]>('/api/admin/orders');
+      const data = await adminFetch<AdminOrder[]>('/api/admin/orders');
       setOrders(data);
     } catch (e: any) {
       setError(e.message);
@@ -97,20 +123,21 @@ export default function AdminOrdersPage() {
                       <div className="text-base text-gray-600">
                         R$ {Number(o.total || 0).toFixed(2)}
                       </div>
-                      {o.customer && (
+                      {(o.customer_name || o.customer_phone || o.customer_address || o.metadata) && (
                         <div className="mt-2 text-sm text-gray-600 space-y-1">
-                          {o.customer.name && <div>Cliente: {o.customer.name}</div>}
-                          {o.customer.phone && <div>Telefone: {o.customer.phone}</div>}
-                          {o.customer.address && <div>Endereço: {o.customer.address}</div>}
-                          {o.customer.neighborhood && <div>Bairro: {o.customer.neighborhood}</div>}
-                          {o.customer.complement && <div>Complemento: {o.customer.complement}</div>}
+                          {o.customer_name && <div>Cliente: {o.customer_name}</div>}
+                          {o.customer_phone && <div>Telefone: {o.customer_phone}</div>}
+                          {o.customer_address && <div>Endereço: {o.customer_address}</div>}
+                          {o.metadata?.reference && <div>Referência: {o.metadata.reference}</div>}
+                          {paymentLabel(o) && <div>Pagamento: {paymentLabel(o)}</div>}
+                          {o.metadata?.notes && <div>Observações: {o.metadata.notes}</div>}
                         </div>
                       )}
                       <div className="mt-3">
                         <div className="font-semibold text-sm mb-2">Itens</div>
                         <div className="space-y-2 text-sm text-gray-700">
                           {Array.isArray(o.items) ? (
-                            o.items.map((item: any) => (
+                            o.items.map((item) => (
                               <div
                                 key={`${o.code}-${item.dishId || item.name}`}
                                 className="rounded border p-2 bg-gray-50"

@@ -14,7 +14,8 @@ function adminClient(): any {
 // categories (id uuid primary key, name text, image text)
 // dishes (id uuid primary key, code text, name text, slug text, description text, price numeric, image_url text, category_id uuid, ingredients text[], serves int, is_featured boolean, is_new boolean, extras jsonb, created_at timestamptz)
 // banners (id uuid primary key, title text, subtitle text, image text)
-// orders (id uuid primary key, code text, items jsonb, total numeric, status text, created_at timestamptz, customer jsonb)
+// orders (id uuid primary key, code text, customer_name text, customer_phone text,
+// customer_address text, items jsonb, total numeric, status text, metadata jsonb, created_at timestamptz)
 
 export async function adminListCategories() {
   const { data, error } = await adminClient().from('categories').select('*').order('position', { ascending: true }).order('name');
@@ -205,7 +206,21 @@ export async function adminUpdateStoreSettings(payload: any) {
   return data;
 }
 
-// Orders
+// Orders (matches the current public.orders schema)
+export type OrderMetadata = {
+  name?: string;
+  phone?: string;
+  delivery?: 'delivery' | 'pickup';
+  street?: string;
+  number?: string;
+  neighborhood?: string;
+  complement?: string;
+  reference?: string;
+  payment?: 'pix' | 'card' | 'cash';
+  change?: string;
+  notes?: string;
+};
+
 export type Order = {
   id: string;
   code: string;
@@ -213,20 +228,32 @@ export type Order = {
   total: number;
   status: 'Novo' | 'Confirmado' | 'Em preparo' | 'Saiu para entrega' | 'Entregue' | 'Cancelado';
   created_at: string;
-  customer?: any;
+  customer_name: string | null;
+  customer_phone: string | null;
+  customer_address: string | null;
+  metadata: OrderMetadata | null;
 };
 
-export async function adminCreateOrder(payload: { items: Order['items']; customer?: any }) {
+export async function adminCreateOrder(payload: { items: Order['items']; customer?: OrderMetadata }) {
   const id = crypto.randomUUID();
   const code = generateOrderCode();
   const total = (payload.items || []).reduce((s, it) => s + it.price * it.quantity, 0);
+  const customer = payload.customer || {};
+  const customerAddress = customer.delivery === 'pickup'
+    ? 'Retirada no local'
+    : [customer.street, customer.number, customer.neighborhood, customer.complement]
+        .filter(Boolean)
+        .join(', ');
   const row = {
     id,
     code,
     items: payload.items,
     total,
     status: 'Novo',
-    customer: payload.customer || null
+    customer_name: customer.name || null,
+    customer_phone: customer.phone || null,
+    customer_address: customerAddress || null,
+    metadata: payload.customer || null
   };
   const { data, error } = await adminClient().from('orders').insert([row]).select().single();
   if (error) throw error;

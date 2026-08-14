@@ -70,10 +70,25 @@ export async function POST(req: Request) {
       change: clean(customer.change, 30),
       notes: clean(customer.notes, 500)
     };
+    const customerAddress = delivery === 'pickup'
+      ? 'Retirada no local'
+      : [safeCustomer.street, safeCustomer.number, safeCustomer.neighborhood, safeCustomer.complement]
+          .filter(Boolean)
+          .join(', ');
     const code = generateOrderCode();
     const { data: order, error: orderError } = await (supabaseAdmin as any)
       .from('orders')
-      .insert([{ id: crypto.randomUUID(), code, items, total, status: 'Novo', customer: safeCustomer }])
+      .insert([{
+        id: crypto.randomUUID(),
+        code,
+        customer_name: name,
+        customer_phone: phone,
+        customer_address: customerAddress,
+        items,
+        total,
+        status: 'Novo',
+        metadata: safeCustomer
+      }])
       .select('id, code, total')
       .single();
     if (orderError) throw orderError;
