@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import AdminLayout from '../layout';
 import { toastSuccess, toastError } from '../../../lib/toast';
+import { adminFetch } from '../../../lib/adminFetch';
 
 type StoreSettingsForm = {
   name: string;
@@ -36,8 +36,7 @@ export default function AdminSettings() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/admin/settings')
-      .then((r) => r.json())
+    adminFetch<any>('/api/admin/settings')
       .then((json) => {
         const value = json?.value;
         if (value && typeof value === 'object') {
@@ -52,13 +51,11 @@ export default function AdminSettings() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch('/api/admin/settings', {
+      await adminFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Erro ao salvar configurações');
       toastSuccess('Configurações salvas');
     } catch (e: any) {
       setError(e.message || 'Erro ao salvar configurações');
@@ -69,7 +66,7 @@ export default function AdminSettings() {
   }
 
   return (
-    <AdminLayout>
+    <>
       <h1 className="mb-4 text-2xl font-display">Configurações da loja</h1>
       <div className="rounded-2xl bg-white p-4 shadow">
         {loading ? (
@@ -105,6 +102,6 @@ export default function AdminSettings() {
         </div>
         {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
       </div>
-    </AdminLayout>
+    </>
   );
 }

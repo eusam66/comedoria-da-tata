@@ -103,11 +103,6 @@ export async function POST(request: Request) {
       authData.user.email
     );
 
-    console.log(
-      '[ADMIN LOGIN] Usuário autenticado:',
-      authenticatedEmail
-    );
-
     /*
      * 2. Consulta a tabela admins usando OUTRO client.
      *
@@ -137,11 +132,6 @@ export async function POST(request: Request) {
     }
 
     const admins = (adminsData || []) as AdminRow[];
-
-    console.log(
-      '[ADMIN LOGIN] Administradores encontrados:',
-      admins.length
-    );
 
     const admin = admins.find(
       (item) =>
@@ -179,11 +169,6 @@ export async function POST(request: Request) {
         { status: 403 }
       );
     }
-
-    console.log(
-      '[ADMIN LOGIN] Acesso administrativo autorizado:',
-      authenticatedEmail
-    );
 
     // 3. Cria os cookies da sessão
     const response = NextResponse.json({

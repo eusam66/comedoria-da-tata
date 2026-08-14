@@ -1,10 +1,10 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
-import AdminLayout from '../layout';
 import { compressImage } from '../../../lib/imageCompress';
 import { toastSuccess, toastError } from '../../../lib/toast';
 import { slugify } from '../../../lib/slug';
+import { adminFetch } from '../../../lib/adminFetch';
 
 type CategoryForm = {
   name: string;
@@ -30,12 +30,13 @@ export default function AdminCategoriesPage() {
   const [error, setError] = useState<string | null>(null);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const [removeCurrentImage, setRemoveCurrentImage] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/admin/categories')
-      .then((r) => r.json())
+    adminFetch<any[]>('/api/admin/categories')
       .then((json) => setItems(json || []))
-      .catch((e) => setError(e.message || 'Erro ao carregar categorias'));
+      .catch((e) => setError(e.message || 'Erro ao carregar categorias'))
+      .finally(() => setLoading(false));
   }, []);
 
   async function uploadIfNeeded(): Promise<string | null> {
@@ -45,9 +46,7 @@ export default function AdminCategoriesPage() {
     fd.append('file', compressed);
     fd.append('bucket', 'branding');
     fd.append('path', `categories/${Date.now()}_${compressed.name}`);
-    const res = await fetch('/api/upload', { method: 'POST', body: fd });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json?.error || 'Falha no upload');
+    const json = await adminFetch<{ publicUrl: string }>('/api/upload', { method: 'POST', body: fd });
     return json.publicUrl;
   }
 
@@ -71,13 +70,11 @@ export default function AdminCategoriesPage() {
       if (imageUrl) payload.image = imageUrl;
       if (!imageUrl && removeCurrentImage && editingId) payload.image = null;
 
-      const res = await fetch(editingId ? `/api/admin/categories/${editingId}` : '/api/admin/categories', {
+      const json = await adminFetch<any>(editingId ? `/api/admin/categories/${editingId}` : '/api/admin/categories', {
         method: editingId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Erro ao salvar categoria');
 
       if (editingId) {
         setItems((current) => current.map((item) => (item.id === editingId ? json : item)));
@@ -110,9 +107,7 @@ export default function AdminCategoriesPage() {
   async function remove(id: string) {
     if (!confirm('Confirma exclusão desta categoria?')) return;
     try {
-      const res = await fetch(`/api/admin/categories/${id}`, { method: 'DELETE' });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Erro ao excluir categoria');
+      await adminFetch<{ ok: boolean }>(`/api/admin/categories/${id}`, { method: 'DELETE' });
       setItems((current) => current.filter((item) => item.id !== id));
       toastSuccess('Categoria excluída');
     } catch (e: any) {
@@ -122,7 +117,7 @@ export default function AdminCategoriesPage() {
   }
 
   return (
-    <AdminLayout>
+    <>
       <h1 className="mb-4 text-2xl font-display">Categorias da loja</h1>
 
       <div className="mb-6 rounded-2xl bg-white p-4 shadow">
@@ -211,6 +206,8 @@ export default function AdminCategoriesPage() {
       </div>
 
       <div className="space-y-3">
+        {loading && <div className="rounded-2xl bg-white p-4 text-sm text-gray-600 shadow">Carregando categorias...</div>}
+        {!loading && items.length === 0 && !error && <div className="rounded-2xl bg-white p-4 text-sm text-gray-600 shadow">Nenhuma categoria cadastrada.</div>}
         {items.map((category) => (
           <div key={category.id} className="rounded-2xl bg-white p-4 shadow">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -237,6 +234,6 @@ export default function AdminCategoriesPage() {
           </div>
         ))}
       </div>
-    </AdminLayout>
+    </>
   );
 }

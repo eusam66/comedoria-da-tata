@@ -1,8 +1,8 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import AdminLayout from '../layout';
 import Skeleton from '../../../components/Skeleton';
 import { toastSuccess, toastError } from '../../../lib/toast';
+import { adminFetch } from '../../../lib/adminFetch';
 
 const STATUSES = ['Novo','Confirmado','Em preparo','Saiu para entrega','Entregue','Cancelado'] as const;
 
@@ -11,27 +11,25 @@ export default function AdminOrdersPage(){
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState<string|null>(null);
 
-  useEffect(()=>{ fetch('/api/admin/orders').then(r=>r.json()).then((d)=>setOrders(d)).catch(e=>setError(e.message)).finally(()=>setLoading(false)); },[]);
+  useEffect(()=>{ adminFetch<any[]>('/api/admin/orders').then((d)=>setOrders(d)).catch(e=>setError(e.message)).finally(()=>setLoading(false)); },[]);
 
   async function changeStatus(code:string, status:string){
     try{
-      await fetch(`/api/admin/orders/${code}`, { method: 'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status }) });
-      const res = await fetch('/api/admin/orders');
-      const data = await res.json();
+      await adminFetch(`/api/admin/orders/${code}`, { method: 'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status }) });
+      const data = await adminFetch<any[]>('/api/admin/orders');
       setOrders(data);
     } catch(e:any){ setError(e.message); }
   }
 
   async function createSample(){
     try{
-      const res = await fetch('/api/admin/orders', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ items: [{ dishId: 'd1', name: 'Pizza Margherita', price: 42.5, quantity: 1 }] }) });
-      const json = await res.json();
+      const json = await adminFetch<any>('/api/admin/orders', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ items: [{ dishId: 'd1', name: 'Pizza Margherita', price: 42.5, quantity: 1 }] }) });
       setOrders((s)=>[json,...s]);
     } catch(e:any){ setError(e.message); }
   }
 
   return (
-    <AdminLayout>
+    <>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-display">Gerenciamento de Pedidos</h1>
         <div className="flex gap-2">
@@ -44,7 +42,7 @@ export default function AdminOrdersPage(){
       {loading ? (
         <Skeleton lines={6} />
       ) : (
-        <div className="space-y-4 md:grid md:grid-cols-6 gap-3">
+        orders.length === 0 ? <div className="rounded bg-white p-4 text-sm text-gray-600 shadow">Nenhum pedido encontrado.</div> : <div className="space-y-4 md:grid md:grid-cols-2 xl:grid-cols-3 gap-3">
           {STATUSES.map((s) => (
             <div key={s} className="bg-white p-3 rounded shadow">
               <div className="font-semibold mb-2">{s}</div>
@@ -86,6 +84,6 @@ export default function AdminOrdersPage(){
           ))}
         </div>
       )}
-    </AdminLayout>
+    </>
   );
 }

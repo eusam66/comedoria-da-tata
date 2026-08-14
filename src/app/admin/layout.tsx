@@ -12,9 +12,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (isAuthPage) return <>{children}</>;
 
   async function logout() {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    router.push('/admin/login');
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } finally {
+      router.replace('/admin/login');
+      router.refresh();
+    }
   }
+
+  const linkClass = (href: string) => {
+    const active = href === '/admin' ? pathname === href : pathname.startsWith(href);
+    return `px-3 py-3 rounded transition-colors ${active ? 'bg-brand-beige font-semibold' : 'hover:bg-brand-beige'}`;
+  };
 
   return (
     <div className="min-h-screen bg-brand-beige">
@@ -23,12 +32,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <aside className="w-64 bg-white border-r p-4 h-screen fixed">
           <div className="font-display text-lg mb-4">Painel — Comedoria</div>
           <nav className="flex flex-col gap-2">
-            <Link href="/admin" className="px-3 py-3 rounded hover:bg-brand-beige">Dashboard</Link>
-            <Link href="/admin/dishes" className="px-3 py-3 rounded hover:bg-brand-beige">Pratos</Link>
-            <Link href="/admin/categories" className="px-3 py-3 rounded hover:bg-brand-beige">Categorias</Link>
-            <Link href="/admin/banners" className="px-3 py-3 rounded hover:bg-brand-beige">Promoções</Link>
-            <Link href="/admin/orders" className="px-3 py-3 rounded hover:bg-brand-beige">Pedidos</Link>
-            <Link href="/admin/settings" className="px-3 py-3 rounded hover:bg-brand-beige">Configurações</Link>
+            <Link href="/admin" className={linkClass('/admin')}>Dashboard</Link>
+            <Link href="/admin/dishes" className={linkClass('/admin/dishes')}>Pratos</Link>
+            <Link href="/admin/categories" className={linkClass('/admin/categories')}>Categorias</Link>
+            <Link href="/admin/banners" className={linkClass('/admin/banners')}>Promoções</Link>
+            <Link href="/admin/orders" className={linkClass('/admin/orders')}>Pedidos</Link>
+            <Link href="/admin/settings" className={linkClass('/admin/settings')}>Configurações</Link>
             <button onClick={logout} className="mt-4 px-3 py-3 rounded text-left hover:bg-brand-beige">Sair</button>
           </nav>
         </aside>

@@ -20,6 +20,13 @@ const ALLOWED = [
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const isAdminApi = pathname.startsWith(ADMIN_API_PREFIX);
+  const reject = (status: 401 | 500, message: string) => {
+    if (isAdminApi) return NextResponse.json({ error: message }, { status });
+    const url = req.nextUrl.clone();
+    url.pathname = '/admin/login';
+    return NextResponse.redirect(url);
+  };
 
   // Arquivos públicos e internos do Next
   if (
@@ -47,14 +54,7 @@ export async function middleware(req: NextRequest) {
     req.cookies.get('supabase-access-token')?.value;
 
   if (!token) {
-    console.warn(
-      '[ADMIN MIDDLEWARE] Token de acesso ausente'
-    );
-
-    const url = req.nextUrl.clone();
-    url.pathname = '/admin/login';
-
-    return NextResponse.redirect(url);
+    return reject(401, 'Unauthorized');
   }
 
   try {
@@ -72,10 +72,7 @@ export async function middleware(req: NextRequest) {
         '[ADMIN MIDDLEWARE] Configuração Supabase ausente'
       );
 
-      const url = req.nextUrl.clone();
-      url.pathname = '/admin/login';
-
-      return NextResponse.redirect(url);
+      return reject(500, 'Admin authentication is not configured');
     }
 
     /*
@@ -106,11 +103,7 @@ export async function middleware(req: NextRequest) {
         body
       );
 
-      const url = req.nextUrl.clone();
-      url.pathname = '/admin/login';
-
-      const redirectResponse =
-        NextResponse.redirect(url);
+      const redirectResponse = reject(401, 'Unauthorized');
 
       // Remove cookies inválidos para evitar loop
       redirectResponse.cookies.delete(
@@ -131,16 +124,8 @@ export async function middleware(req: NextRequest) {
         '[ADMIN MIDDLEWARE] Supabase não retornou usuário válido'
       );
 
-      const url = req.nextUrl.clone();
-      url.pathname = '/admin/login';
-
-      return NextResponse.redirect(url);
+      return reject(401, 'Unauthorized');
     }
-
-    console.log(
-      '[ADMIN MIDDLEWARE] Sessão válida:',
-      user.email || user.id
-    );
 
     return NextResponse.next();
   } catch (error) {
@@ -149,10 +134,7 @@ export async function middleware(req: NextRequest) {
       error
     );
 
-    const url = req.nextUrl.clone();
-    url.pathname = '/admin/login';
-
-    return NextResponse.redirect(url);
+    return reject(401, 'Unauthorized');
   }
 }
 

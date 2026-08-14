@@ -246,6 +246,8 @@ export async function adminGetOrderByCode(code: string) {
 }
 
 export async function adminUpdateOrderStatus(code: string, status: Order['status']) {
+  const allowedStatuses: Order['status'][] = ['Novo', 'Confirmado', 'Em preparo', 'Saiu para entrega', 'Entregue', 'Cancelado'];
+  if (!allowedStatuses.includes(status)) throw new Error('Invalid order status');
   const { data, error } = await adminClient().from('orders').update({ status }).eq('code', code).select().single();
   if (error) throw error;
   return data;

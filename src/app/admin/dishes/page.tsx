@@ -1,12 +1,12 @@
 ﻿'use client';
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
-import AdminLayout from '../layout';
 import { slugify } from '../../../lib/slug';
 import { compressImage } from '../../../lib/imageCompress';
 import { toastSuccess, toastError } from '../../../lib/toast';
 import Skeleton from '../../../components/Skeleton';
 import { DishAddon, normalizeDishAddons, serializeDishAddons } from '../../../lib/addons';
+import { adminFetch } from '../../../lib/adminFetch';
 
 export default function AdminDishesPage() {
   const [items, setItems] = useState<any[]>([]);
@@ -35,8 +35,8 @@ export default function AdminDishesPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/admin/dishes').then((r) => r.json()),
-      fetch('/api/admin/categories').then((r) => r.json())
+      adminFetch<any[]>('/api/admin/dishes'),
+      adminFetch<any[]>('/api/admin/categories')
     ])
       .then(([dishes, categories]) => {
         setItems(dishes || []);
@@ -54,9 +54,7 @@ export default function AdminDishesPage() {
       fd.append('file', compressed);
       fd.append('bucket', 'dishes');
       fd.append('path', `dishes/${Date.now()}_${compressed.name}`);
-      const res = await fetch('/api/upload', { method: 'POST', body: fd });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Upload failed');
+      const json = await adminFetch<{ publicUrl: string }>('/api/upload', { method: 'POST', body: fd });
       return json.publicUrl;
     } catch (err: any) {
       throw new Error(err?.message || 'Upload/compress failed');
@@ -149,13 +147,11 @@ export default function AdminDishesPage() {
         extras: normalizedAddons.length > 0 ? serializeDishAddons(normalizedAddons) : null
       };
       if (imageUrl) payload.image = imageUrl;
-      const res = await fetch('/api/admin/dishes', {
+      const json = await adminFetch<any>('/api/admin/dishes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Create failed');
       setItems((s) => [json, ...s]);
       resetForm();
       toastSuccess('Prato criado com sucesso');
@@ -183,13 +179,11 @@ export default function AdminDishesPage() {
       };
       if (imageUrl) payload.image = imageUrl;
       if (!imageUrl && removeCurrentImage) payload.image = null;
-      const res = await fetch(`/api/admin/dishes/${editingId}`, {
+      const json = await adminFetch<any>(`/api/admin/dishes/${editingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Update failed');
       setItems((s) => s.map((x) => (x.id === editingId ? json : x)));
       resetForm();
       toastSuccess('Prato atualizado com sucesso');
@@ -201,7 +195,7 @@ export default function AdminDishesPage() {
 
   async function remove(id: string) {
     try {
-      await fetch(`/api/admin/dishes/${id}`, { method: 'DELETE' });
+      await adminFetch<{ ok: boolean }>(`/api/admin/dishes/${id}`, { method: 'DELETE' });
       setItems((s) => s.filter((x) => x.id !== id));
       toastSuccess('Prato excluído');
     } catch (e: any) {
@@ -213,7 +207,7 @@ export default function AdminDishesPage() {
   const submitLabel = editingId ? 'Salvar alterações' : 'Criar prato';
 
   return (
-    <AdminLayout>
+    <>
       <h1 className="text-2xl font-display mb-4">CRUD de Pratos</h1>
       <div className="bg-white p-4 rounded shadow mb-6">
         <h3 className="font-semibold mb-4">{editingId ? 'Editar prato' : 'Criar prato'}</h3>
@@ -430,13 +424,14 @@ export default function AdminDishesPage() {
 
       <div className="space-y-3">
         {loading && <Skeleton lines={3} />}
+        {!loading && items.length === 0 && !error && <div className="rounded bg-white p-4 text-sm text-gray-600 shadow">Nenhum prato cadastrado.</div>}
         {items.map((d) => (
           <div key={d.id} className="bg-white p-4 rounded shadow flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="font-medium text-lg">{d.name}</div>
                 {d.is_new && <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">Novo</span>}
-                {d.popular && <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs">Mais pedido</span>}
+                {(d.popular ?? d.is_featured) && <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs">Mais pedido</span>}
               </div>
               <div className="text-sm text-gray-600 mt-1">R$ {Number(d.price || 0).toFixed(2)} • Serve {d.servings || d.serves || 1} pessoa(s)</div>
               <div className="text-sm text-gray-600 mt-1">Código: {d.code || '—'} • Ordem: {d.position ?? 0} • {d.is_available === false ? 'Indisponível' : 'Disponível'}</div>
@@ -451,6 +446,6 @@ export default function AdminDishesPage() {
           </div>
         ))}
       </div>
-    </AdminLayout>
+    </>
   );
 }

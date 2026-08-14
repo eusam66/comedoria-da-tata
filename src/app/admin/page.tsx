@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import AdminLayout from './layout';
+import { adminFetch } from '@/lib/adminFetch';
 
 type DashboardState = {
   dishes: any[];
@@ -12,13 +12,14 @@ type DashboardState = {
 export default function AdminDashboard() {
   const [state, setState] = useState<DashboardState>({ dishes: [], categories: [], banners: [], orders: [] });
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/admin/dishes').then((r) => r.json()),
-      fetch('/api/admin/categories').then((r) => r.json()),
-      fetch('/api/admin/banners').then((r) => r.json()),
-      fetch('/api/admin/orders').then((r) => r.json())
+      adminFetch<any[]>('/api/admin/dishes'),
+      adminFetch<any[]>('/api/admin/categories'),
+      adminFetch<any[]>('/api/admin/banners'),
+      adminFetch<any[]>('/api/admin/orders')
     ])
       .then(([dishes, categories, banners, orders]) => {
         setState({
@@ -28,7 +29,8 @@ export default function AdminDashboard() {
           orders: Array.isArray(orders) ? orders : []
         });
       })
-      .catch((e) => setError(e.message || 'Erro ao carregar o dashboard'));
+      .catch((e) => setError(e.message || 'Erro ao carregar o dashboard'))
+      .finally(() => setLoading(false));
   }, []);
 
   const recent = state.orders.slice(0, 5);
@@ -37,8 +39,9 @@ export default function AdminDashboard() {
   const activeBanners = state.banners.filter((banner) => banner.active !== false).length;
 
   return (
-    <AdminLayout>
+    <>
       <h1 className="mb-4 text-2xl font-display">Dashboard da loja</h1>
+      {loading && <div className="mb-4 rounded-2xl bg-white p-4 text-sm text-gray-600 shadow">Carregando dados do painel...</div>}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <div className="rounded-2xl bg-white p-4 shadow">Pedidos totais: {state.orders.length}</div>
         <div className="rounded-2xl bg-white p-4 shadow">Pratos ativos: {activeDishes}</div>
@@ -62,6 +65,6 @@ export default function AdminDashboard() {
         </div>
       </section>
       {error && <div className="mt-4 text-sm text-red-600">{error}</div>}
-    </AdminLayout>
+    </>
   );
 }

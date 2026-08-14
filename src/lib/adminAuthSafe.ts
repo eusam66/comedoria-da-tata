@@ -18,10 +18,12 @@ export async function requireAdmin(req: Request) {
 
   // validate token and get user
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || process.env.URL_SUPABASE;
-  if (!supabaseUrl) throw new Error('Supabase not configured');
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnonKey) throw new Error('Supabase not configured');
 
   const resp = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/user`, {
-    headers: { Authorization: `Bearer ${token}` }
+    headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${token}` },
+    cache: 'no-store'
   });
   if (!resp.ok) throw new Error('Unauthorized');
   const user = await resp.json();
@@ -46,19 +48,6 @@ export async function requireAdmin(req: Request) {
 
   if (!byEmail.error && byEmail.data) {
     adminRow = byEmail.data;
-  }
-
-  if (!adminRow) {
-    const byUserId = await (client as any)
-      .from('admins')
-      .select('*')
-      .eq('user_id', userId)
-      .limit(1)
-      .maybeSingle();
-
-    if (!byUserId.error && byUserId.data) {
-      adminRow = byUserId.data;
-    }
   }
 
   if (!adminRow) throw new Error('Forbidden');

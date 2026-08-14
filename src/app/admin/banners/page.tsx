@@ -1,9 +1,9 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
-import AdminLayout from '../layout';
 import { compressImage } from '../../../lib/imageCompress';
 import { toastSuccess, toastError } from '../../../lib/toast';
+import { adminFetch } from '../../../lib/adminFetch';
 
 type BannerForm = {
   title: string;
@@ -31,12 +31,13 @@ export default function AdminBannersPage() {
   const [error, setError] = useState<string | null>(null);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const [removeCurrentImage, setRemoveCurrentImage] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/admin/banners')
-      .then((r) => r.json())
+    adminFetch<any[]>('/api/admin/banners')
       .then((json) => setItems(json || []))
-      .catch((e) => setError(e.message || 'Erro ao carregar promoções'));
+      .catch((e) => setError(e.message || 'Erro ao carregar promoções'))
+      .finally(() => setLoading(false));
   }, []);
 
   async function uploadIfNeeded(): Promise<string | null> {
@@ -46,9 +47,7 @@ export default function AdminBannersPage() {
     fd.append('file', compressed);
     fd.append('bucket', 'banners');
     fd.append('path', `banners/${Date.now()}_${compressed.name}`);
-    const res = await fetch('/api/upload', { method: 'POST', body: fd });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json?.error || 'Falha no upload');
+    const json = await adminFetch<{ publicUrl: string }>('/api/upload', { method: 'POST', body: fd });
     return json.publicUrl;
   }
 
@@ -68,13 +67,11 @@ export default function AdminBannersPage() {
       const payload: any = { ...form };
       if (imageUrl) payload.image = imageUrl;
       if (!imageUrl && removeCurrentImage && editingId) payload.image = null;
-      const res = await fetch(editingId ? `/api/admin/banners/${editingId}` : '/api/admin/banners', {
+      const json = await adminFetch<any>(editingId ? `/api/admin/banners/${editingId}` : '/api/admin/banners', {
         method: editingId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Erro ao salvar promoção');
 
       if (editingId) {
         setItems((current) => current.map((item) => (item.id === editingId ? json : item)));
@@ -108,9 +105,7 @@ export default function AdminBannersPage() {
   async function remove(id: string) {
     if (!confirm('Confirma exclusão desta promoção?')) return;
     try {
-      const res = await fetch(`/api/admin/banners/${id}`, { method: 'DELETE' });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Erro ao excluir promoção');
+      await adminFetch<{ ok: boolean }>(`/api/admin/banners/${id}`, { method: 'DELETE' });
       setItems((current) => current.filter((item) => item.id !== id));
       toastSuccess('Promoção excluída');
     } catch (e: any) {
@@ -120,7 +115,7 @@ export default function AdminBannersPage() {
   }
 
   return (
-    <AdminLayout>
+    <>
       <h1 className="mb-4 text-2xl font-display">Promoções e banners</h1>
 
       <div className="mb-6 rounded-2xl bg-white p-4 shadow">
@@ -191,6 +186,8 @@ export default function AdminBannersPage() {
       </div>
 
       <div className="space-y-3">
+        {loading && <div className="rounded-2xl bg-white p-4 text-sm text-gray-600 shadow">Carregando promoções...</div>}
+        {!loading && items.length === 0 && !error && <div className="rounded-2xl bg-white p-4 text-sm text-gray-600 shadow">Nenhuma promoção cadastrada.</div>}
         {items.map((banner) => (
           <div key={banner.id} className="rounded-2xl bg-white p-4 shadow">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -217,6 +214,6 @@ export default function AdminBannersPage() {
           </div>
         ))}
       </div>
-    </AdminLayout>
+    </>
   );
 }

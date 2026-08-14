@@ -66,7 +66,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ path, publicUrl: urlData.publicUrl });
   } catch (err:any) {
     console.error('upload route error', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const status = err.message === 'Forbidden' ? 403 : err.message === 'Unauthorized' ? 401 : 500;
+    return NextResponse.json({ error: err.message }, { status });
   }
 }
 
@@ -87,6 +88,7 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ ok: removed });
   } catch (err:any) {
     console.error('upload delete route error', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const status = err.message === 'Forbidden' ? 403 : err.message === 'Unauthorized' ? 401 : 500;
+    return NextResponse.json({ error: err.message }, { status });
   }
 }
