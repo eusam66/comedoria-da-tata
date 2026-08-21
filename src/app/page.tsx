@@ -197,7 +197,7 @@ export default function Home() {
                 desc: item.size,
                 size: item.size,
                 price: Number(item.price),
-                image: item.image_url || '/branding/logo-oficial.jpg',
+                image: item.image_url || item.image || '/branding/logo-oficial.jpg',
                 tag: 'Bebida',
                 stock: Number(item.stock || 0),
                 available: Number(item.stock || 0) >= 1,

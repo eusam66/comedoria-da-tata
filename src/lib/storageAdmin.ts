@@ -2,12 +2,16 @@ import supabaseAdmin from './supabaseAdmin';
 
 function adminStorage() {
   if (!supabaseAdmin) {
-    throw new Error('Supabase admin client not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
+    throw new Error(
+      'Supabase admin client not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.'
+    );
   }
   return supabaseAdmin.storage;
 }
 
-export function parseStoragePublicUrl(publicUrl: string | null | undefined): { bucket: string; path: string } | null {
+export function parseStoragePublicUrl(
+  publicUrl: string | null | undefined
+): { bucket: string; path: string } | null {
   if (!publicUrl || typeof publicUrl !== 'string') return null;
 
   try {
@@ -40,4 +44,21 @@ export async function removeStorageFileByPublicUrl(publicUrl: string | null | un
   const { error } = await adminStorage().from(parsed.bucket).remove([parsed.path]);
   if (error) throw error;
   return true;
+}
+
+export async function removeStorageFileByPublicUrlIfUnreferenced(
+  publicUrl: string | null | undefined
+) {
+  if (!publicUrl || !supabaseAdmin) return false;
+
+  for (const table of ['beverages', 'dishes', 'banners', 'categories']) {
+    const { data, error } = await (supabaseAdmin as any)
+      .from(table)
+      .select('id')
+      .eq('image_url', publicUrl)
+      .limit(1);
+    if (error || (data && data.length > 0)) return false;
+  }
+
+  return removeStorageFileByPublicUrl(publicUrl);
 }
