@@ -24,6 +24,13 @@ type Dish = {
   type?: 'dish' | 'beverage';
 };
 
+type Promotion = {
+  id: string;
+  title?: string | null;
+  subtitle?: string | null;
+  link?: string | null;
+};
+
 const fallbackDishes: Dish[] = [
   {
     id: 'lasanha-frango',
@@ -130,6 +137,7 @@ export default function Home() {
   const { items, addItem, updateQty, removeItem, clear, itemCount, total } = useCart();
   const [dishes, setDishes] = useState<Dish[]>(fallbackDishes);
   const [beverages, setBeverages] = useState<Dish[]>([]);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [storeStatus, setStoreStatus] = useState<{
     isOpen: boolean;
     label?: string;
@@ -211,6 +219,10 @@ export default function Home() {
       .then((response) => response.json())
       .then(setStoreStatus)
       .catch(() => {});
+    fetch('/api/banners')
+      .then((response) => (response.ok ? response.json() : []))
+      .then((items) => setPromotions(Array.isArray(items) ? items : []))
+      .catch(() => setPromotions([]));
   }, []);
 
   const categories = useMemo(
@@ -364,7 +376,10 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="hero" aria-label="Destaque da Comedoria da Tata">
+      <section
+        className={`hero${promotions.length ? ' has-promotions' : ''}`}
+        aria-label="Destaque da Comedoria da Tata"
+      >
         <div className="hero-photo" />
         <div className="hero-shade" />
         <div className="hero-content">
@@ -374,16 +389,29 @@ export default function Home() {
             da Tata
           </h1>
           <p className="hero-slogan">Sabor de casa em cada prato.</p>
-          <div className="promo-card glass">
-            <span className="promo-icon" aria-hidden="true">
-              ★
-            </span>
-            <div>
-              <small>Promoções</small>
-              <b>Confira as condições do dia</b>
-              <span>Fale com a Comedoria pelo WhatsApp.</span>
-            </div>
-          </div>
+          {promotions.map((promotion) => {
+            const content = (
+              <>
+                <span className="promo-icon" aria-hidden="true">
+                  ★
+                </span>
+                <div>
+                  <small>Promoções</small>
+                  <b>{promotion.title || 'Confira as condições do dia'}</b>
+                  {promotion.subtitle && <span>{promotion.subtitle}</span>}
+                </div>
+              </>
+            );
+            return promotion.link ? (
+              <Link key={promotion.id} href={promotion.link} className="promo-card glass">
+                {content}
+              </Link>
+            ) : (
+              <div key={promotion.id} className="promo-card glass">
+                {content}
+              </div>
+            );
+          })}
         </div>
       </section>
 

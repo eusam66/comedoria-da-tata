@@ -164,3 +164,39 @@ body {
     padding-bottom: calc(105px + env(safe-area-inset-bottom));
   }
 }
+
+/* O hero só reserva a altura da promoção quando há conteúdo ativo. */
+.hero {
+  min-height: 390px;
+}
+.hero.has-promotions {
+  min-height: 500px;
+}
+.promo-card {
+  color: inherit;
+  text-decoration: none;
+}
+
+@media (max-width: 980px) {
+  .hero {
+    min-height: 380px;
+  }
+  .hero.has-promotions {
+    min-height: 470px;
+  }
+}
+
+@media (max-width: 620px) {
+  .hero {
+    min-height: 290px;
+  }
+  .hero.has-promotions {
+    min-height: 390px;
+  }
+  .hero-content {
+    padding: 38px 18px 42px;
+  }
+  .hero.has-promotions .hero-content {
+    padding-bottom: 58px;
+  }
+}
