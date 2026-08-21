@@ -109,6 +109,7 @@ export default function AdminDishesPage() {
     setFile(null);
     setCurrentImageUrl(dish.image_url || dish.image || null);
     setRemoveCurrentImage(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function addAddonRow() {
@@ -212,17 +213,44 @@ export default function AdminDishesPage() {
 
   async function setStock(dish: any, stock: number) {
     try {
-      const json = await adminFetch<any>(`/api/admin/dishes/${dish.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stock: Math.max(0, stock) }) });
-      setItems((current) => current.map((item) => item.id === dish.id ? json : item));
-    } catch (e: any) { toastError(e.message || 'Erro ao atualizar estoque'); }
+      const json = await adminFetch<any>(`/api/admin/dishes/${dish.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stock: Math.max(0, stock) }),
+      });
+      setItems((current) => current.map((item) => (item.id === dish.id ? json : item)));
+    } catch (e: any) {
+      toastError(e.message || 'Erro ao atualizar estoque');
+    }
   }
 
   async function duplicate(dish: any) {
     try {
       const suffix = Date.now().toString(36);
-      const created = await adminFetch<any>('/api/admin/dishes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `${dish.name} (cópia)`, price: dish.price, categoryId: dish.category_id || null, slug: `${slugify(dish.name)}-copia-${suffix}`, description: dish.description, ingredients: typeof dish.ingredients === 'string' ? dish.ingredients : null, servings: dish.servings || dish.serves || 1, position: dish.position || 0, popular: false, isNew: false, extras: dish.extras || null, image: dish.image_url || dish.image || null, stock: 0 }) });
-      setItems((current) => [created, ...current]); toastSuccess('Prato duplicado com estoque 0 para revisão');
-    } catch (e: any) { toastError(e.message || 'Erro ao duplicar prato'); }
+      const created = await adminFetch<any>('/api/admin/dishes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${dish.name} (cópia)`,
+          price: dish.price,
+          categoryId: dish.category_id || null,
+          slug: `${slugify(dish.name)}-copia-${suffix}`,
+          description: dish.description,
+          ingredients: typeof dish.ingredients === 'string' ? dish.ingredients : null,
+          servings: dish.servings || dish.serves || 1,
+          position: dish.position || 0,
+          popular: false,
+          isNew: false,
+          extras: dish.extras || null,
+          image: dish.image_url || dish.image || null,
+          stock: 0,
+        }),
+      });
+      setItems((current) => [created, ...current]);
+      toastSuccess('Prato duplicado com estoque 0 para revisão');
+    } catch (e: any) {
+      toastError(e.message || 'Erro ao duplicar prato');
+    }
   }
 
   const submitLabel = editingId ? 'Salvar alterações' : 'Criar prato';
@@ -291,8 +319,20 @@ export default function AdminDishesPage() {
                   className="border p-3 rounded w-full"
                 />
               </AdminField>
-              <AdminField label="Estoque" help="1 ou mais: disponível. 0: esgotado automaticamente.">
-                <input type="number" min="0" step="1" value={form.stock} onChange={(e) => setForm({ ...form, stock: Math.max(0, parseInt(e.target.value || '0', 10)) })} className="border p-3 rounded w-full" />
+              <AdminField
+                label="Estoque"
+                help="1 ou mais: disponível. 0: esgotado automaticamente."
+              >
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={form.stock}
+                  onChange={(e) =>
+                    setForm({ ...form, stock: Math.max(0, parseInt(e.target.value || '0', 10)) })
+                  }
+                  className="border p-3 rounded w-full"
+                />
               </AdminField>
             </div>
             <AdminField label="Descrição" help="Descrição curta e atrativa exibida no cardápio.">
@@ -353,7 +393,9 @@ export default function AdminDishesPage() {
                     Marque para destacar entre os pratos mais pedidos.
                   </span>
                 </label>
-                <p className="text-xs text-gray-500 sm:col-span-2">A disponibilidade normal é definida automaticamente pelo estoque.</p>
+                <p className="text-xs text-gray-500 sm:col-span-2">
+                  A disponibilidade normal é definida automaticamente pelo estoque.
+                </p>
               </div>
             </fieldset>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -566,65 +608,136 @@ export default function AdminDishesPage() {
             Nenhum prato cadastrado.
           </div>
         )}
-        {items.map((d) => (
-          <div
-            key={d.id}
-            className="bg-white p-4 rounded shadow flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
-          >
-            <div className="flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="font-medium text-lg">{d.name}</div>
-                {d.is_new && (
-                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
-                    Novo
+        {items.map((d) => {
+          const stock = Math.max(0, Number(d.stock || 0));
+          const categoryName =
+            categories.find((category) => category.id === d.category_id)?.name || 'Sem categoria';
+          const addonCount = normalizeDishAddons(d.extras ?? d.addons ?? null).length;
+          const imageUrl = d.image_url || d.image || null;
+
+          return (
+            <article
+              key={d.id}
+              className="flex min-w-0 flex-col gap-3 rounded-2xl bg-white p-4 shadow sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="flex min-w-0 items-center gap-3 sm:flex-1">
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-orange-50">
+                  {imageUrl ? (
+                    <Image
+                      src={imageUrl}
+                      alt={d.name || 'Prato'}
+                      width={80}
+                      height={80}
+                      className="h-full w-full object-cover"
+                      unoptimized
+                    />
+                  ) : (
+                    <span className="px-2 text-center text-xs text-gray-500">Sem foto</span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <b className="min-w-0 break-words text-base leading-tight">{d.name}</b>
+                    {d.is_new && (
+                      <span className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-800">
+                        Novo
+                      </span>
+                    )}
+                    {(d.popular ?? d.is_featured) && (
+                      <span className="rounded-full bg-yellow-100 px-2 py-1 text-xs text-yellow-800">
+                        Mais pedido
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm text-gray-600">
+                    <span className="font-semibold whitespace-nowrap">
+                      R$ {Number(d.price || 0).toFixed(2)}
+                    </span>{' '}
+                    · {categoryName} · Serve {d.servings || d.serves || 1}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Estoque: {stock} · {addonCount} adicional{addonCount === 1 ? '' : 'is'}
+                  </p>
+                  <span
+                    className={`text-xs font-semibold ${
+                      stock === 0
+                        ? 'text-red-600'
+                        : stock <= 2
+                        ? 'text-amber-700'
+                        : 'text-green-700'
+                    }`}
+                  >
+                    {stock === 0 ? 'Esgotado' : stock <= 2 ? `Restam ${stock}` : 'Disponível'}
                   </span>
-                )}
-                {(d.popular ?? d.is_featured) && (
-                  <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs">
-                    Mais pedido
-                  </span>
-                )}
+                </div>
               </div>
-              <div className="text-sm text-gray-600 mt-1">
-                R$ {Number(d.price || 0).toFixed(2)} • Serve {d.servings || d.serves || 1} pessoa(s)
+
+              <div className="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto sm:max-w-[30rem] sm:justify-end">
+                <div className="flex min-h-11 items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label={`Diminuir estoque de ${d.name}`}
+                    onClick={() => setStock(d, stock - 1)}
+                    disabled={stock < 1}
+                    className="min-h-11 min-w-11 rounded border px-3 py-2 disabled:opacity-40"
+                  >
+                    −
+                  </button>
+                  <b className="min-w-8 text-center">{stock}</b>
+                  <button
+                    type="button"
+                    aria-label={`Aumentar estoque de ${d.name}`}
+                    onClick={() => setStock(d, stock + 1)}
+                    className="min-h-11 min-w-11 rounded border px-3 py-2"
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStock(d, 0)}
+                    className="min-h-11 rounded border border-red-200 px-3 py-2 text-sm text-red-700"
+                  >
+                    Zerar estoque
+                  </button>
+                </div>
+                <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+                  <a
+                    href={`/dishes/${d.slug}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="min-h-11 rounded border px-3 py-2.5 text-center text-sm"
+                  >
+                    Ver no cardápio
+                  </a>
+                  <button
+                    type="button"
+                    className="min-h-11 rounded border px-3 py-2 text-sm"
+                    onClick={() => duplicate(d)}
+                  >
+                    Duplicar
+                  </button>
+                  <button
+                    type="button"
+                    className="min-h-11 rounded border px-3 py-2 text-sm"
+                    onClick={() => startEdit(d)}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    className="min-h-11 rounded bg-red-500 px-3 py-2 text-sm text-white"
+                    onClick={async () => {
+                      if (!confirm('Confirma exclusão deste prato?')) return;
+                      await remove(d.id);
+                    }}
+                  >
+                    Excluir
+                  </button>
+                </div>
               </div>
-              <div className="text-sm text-gray-600 mt-1">
-                Código: {d.code || '—'} • Ordem: {d.position ?? 0} • Estoque: {d.stock ?? 0} •{' '}
-                {Number(d.stock || 0) < 1 ? 'Esgotado' : 'Disponível'}
-              </div>
-              <div className="text-sm text-gray-600 mt-1">
-                Categoria: {categories.find((c) => c.id === d.category_id)?.name || 'Sem categoria'}
-              </div>
-              <div className="text-sm text-gray-600 mt-1">
-                Adicionais: {normalizeDishAddons(d.extras ?? d.addons ?? null).length}
-              </div>
-              <div className="text-sm text-gray-600 mt-2 line-clamp-2">{d.description}</div>
-              {Number(d.stock || 0) > 0 && Number(d.stock || 0) <= 2 && <div className="mt-2 font-semibold text-amber-700">Restam {d.stock}</div>}
-            </div>
-            <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
-              <div className="flex items-center gap-2"><button aria-label={`Diminuir estoque de ${d.name}`} onClick={() => setStock(d, Number(d.stock || 0) - 1)} disabled={Number(d.stock || 0) < 1} className="rounded border px-3 py-2 disabled:opacity-40">−</button><b className="min-w-8 text-center">{d.stock || 0}</b><button aria-label={`Aumentar estoque de ${d.name}`} onClick={() => setStock(d, Number(d.stock || 0) + 1)} className="rounded border px-3 py-2">+</button><button onClick={() => setStock(d, 0)} className="rounded border border-red-200 px-3 py-2 text-sm text-red-700">Zerar estoque</button></div>
-              <a href={`/dishes/${d.slug}`} target="_blank" rel="noreferrer" className="w-full rounded border px-4 py-2 text-center sm:w-auto">Ver no cardápio</a>
-              <button type="button" className="w-full rounded border px-4 py-2 sm:w-auto" onClick={() => duplicate(d)}>Duplicar</button>
-              <button
-                type="button"
-                className="w-full sm:w-auto py-2 px-4 border rounded"
-                onClick={() => startEdit(d)}
-              >
-                Editar
-              </button>
-              <button
-                type="button"
-                className="w-full sm:w-auto py-2 px-4 bg-red-500 text-white rounded"
-                onClick={async () => {
-                  if (!confirm('Confirma exclusão deste prato?')) return;
-                  await remove(d.id);
-                }}
-              >
-                Excluir
-              </button>
-            </div>
-          </div>
-        ))}
+            </article>
+          );
+        })}
       </div>
     </>
   );
