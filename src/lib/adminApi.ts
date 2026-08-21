@@ -12,7 +12,7 @@ function adminClient(): any {
 
 // Admin API backed by Supabase (server-side client). Assumes the following tables exist:
 // categories (id uuid primary key, name text, image text)
-// dishes (id uuid primary key, code text, name text, slug text, description text, price numeric, image_url text, category_id uuid, ingredients text[], serves int, is_featured boolean, is_new boolean, extras jsonb, created_at timestamptz)
+// dishes (id uuid primary key, code text, name text, slug text, description text, price numeric, image_url text, category_id uuid, ingredients text, serves int, is_featured boolean, is_new boolean, extras jsonb, created_at timestamptz)
 // banners (id uuid primary key, title text, subtitle text, image text)
 // orders (id uuid primary key, code text, customer_name text, customer_phone text,
 // customer_address text, items jsonb, total numeric, status text, metadata jsonb, created_at timestamptz)
@@ -86,12 +86,13 @@ export async function adminCreateDish(payload: any) {
     price: payload.price || 0,
     image_url: payload.image || null,
     category_id: payload.categoryId || null,
-    ingredients: payload.ingredients || null,
+    ingredients: typeof payload.ingredients === 'string' ? payload.ingredients.trim() || null : null,
     serves: payload.servings || null,
     is_featured: payload.popular || false,
     is_new: payload.isNew || false,
     extras: payload.extras || null,
-    is_available: payload.isAvailable ?? true,
+    is_available: Number(payload.stock || 0) >= 1,
+    stock: Math.max(0, Math.trunc(Number(payload.stock || 0))),
     position: payload.position || 0
   };
   const { data, error } = await adminClient().from('dishes').insert([row]).select().single();
@@ -109,12 +110,12 @@ export async function adminUpdateDish(id: string, payload: any) {
   if (payload.price !== undefined) patch.price = payload.price;
   if (payload.image !== undefined) patch.image_url = payload.image;
   if (payload.categoryId !== undefined) patch.category_id = payload.categoryId;
-  if (payload.ingredients !== undefined) patch.ingredients = payload.ingredients;
+  if (payload.ingredients !== undefined) patch.ingredients = typeof payload.ingredients === 'string' ? payload.ingredients.trim() || null : null;
   if (payload.servings !== undefined) patch.serves = payload.servings;
   if (payload.popular !== undefined) patch.is_featured = payload.popular;
   if (payload.isNew !== undefined) patch.is_new = payload.isNew;
   if (payload.extras !== undefined) patch.extras = payload.extras;
-  if (payload.isAvailable !== undefined) patch.is_available = payload.isAvailable;
+  if (payload.stock !== undefined) { patch.stock = Math.max(0, Math.trunc(Number(payload.stock))); patch.is_available = patch.stock >= 1; }
   if (payload.position !== undefined) patch.position = payload.position;
   const { data, error } = await adminClient().from('dishes').update(patch).eq('id', id).select().single();
   if (error) throw error;
@@ -129,6 +130,43 @@ export async function adminDeleteDish(id: string) {
   const current = await adminClient().from('dishes').select('*').eq('id', id).maybeSingle();
   if (current.error) throw current.error;
   const { error } = await adminClient().from('dishes').delete().eq('id', id);
+  if (error) throw error;
+  await removeStorageFileByPublicUrl(current.data?.image_url || null);
+  return true;
+}
+
+export async function adminListBeverages() {
+  const { data, error } = await adminClient().from('beverages').select('*').order('position').order('created_at');
+  if (error) throw error;
+  return data;
+}
+
+export async function adminCreateBeverage(payload: any) {
+  const { data, error } = await adminClient().from('beverages').insert([{
+    id: crypto.randomUUID(), name: payload.name, size: payload.size, price: Number(payload.price || 0),
+    image_url: payload.image || null, stock: Math.max(0, Math.trunc(Number(payload.stock || 0))), position: Math.trunc(Number(payload.position || 0))
+  }]).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function adminUpdateBeverage(id: string, payload: any) {
+  const current = await adminClient().from('beverages').select('*').eq('id', id).maybeSingle();
+  if (current.error) throw current.error;
+  const patch: any = {};
+  for (const [input, column] of Object.entries({ name: 'name', size: 'size', price: 'price', stock: 'stock', position: 'position', image: 'image_url' })) {
+    if (payload[input] !== undefined) patch[column] = ['stock', 'position'].includes(input) ? Math.max(0, Math.trunc(Number(payload[input]))) : payload[input];
+  }
+  const { data, error } = await adminClient().from('beverages').update(patch).eq('id', id).select().single();
+  if (error) throw error;
+  if (payload.image !== undefined && current.data?.image_url && current.data.image_url !== data.image_url) await removeStorageFileByPublicUrl(current.data.image_url);
+  return data;
+}
+
+export async function adminDeleteBeverage(id: string) {
+  const current = await adminClient().from('beverages').select('*').eq('id', id).maybeSingle();
+  if (current.error) throw current.error;
+  const { error } = await adminClient().from('beverages').delete().eq('id', id);
   if (error) throw error;
   await removeStorageFileByPublicUrl(current.data?.image_url || null);
   return true;
@@ -226,7 +264,7 @@ export type Order = {
   code: string;
   items: Array<{ dishId: string; name: string; price: number; quantity: number }>;
   total: number;
-  status: 'Novo' | 'Confirmado' | 'Em preparo' | 'Saiu para entrega' | 'Entregue' | 'Cancelado';
+  status: 'Novo' | 'Em preparo' | 'Pronto' | 'Finalizado' | 'Cancelado';
   created_at: string;
   customer_name: string | null;
   customer_phone: string | null;
@@ -273,9 +311,9 @@ export async function adminGetOrderByCode(code: string) {
 }
 
 export async function adminUpdateOrderStatus(code: string, status: Order['status']) {
-  const allowedStatuses: Order['status'][] = ['Novo', 'Confirmado', 'Em preparo', 'Saiu para entrega', 'Entregue', 'Cancelado'];
+  const allowedStatuses = ['Novo', 'Em preparo', 'Pronto', 'Finalizado', 'Cancelado'];
   if (!allowedStatuses.includes(status)) throw new Error('Invalid order status');
-  const { data, error } = await adminClient().from('orders').update({ status }).eq('code', code).select().single();
+  const { data, error } = await (adminClient() as any).rpc('update_order_status_with_stock_restore', { p_code: code, p_status: status });
   if (error) throw error;
   return data;
 }

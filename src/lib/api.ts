@@ -12,11 +12,12 @@ export type Dish = {
   image?: string | null;
   categoryId?: string | null;
   categoryName?: string | null;
-  ingredients?: string[] | null;
+  ingredients?: string | null;
   servings?: number | null;
   popular?: boolean | null;
   isNew?: boolean | null;
   isAvailable?: boolean | null;
+  stock?: number | null;
   position?: number | null;
   addons?: Array<{
     id: string;
@@ -45,7 +46,7 @@ const mockDishes: Dish[] = [
     image: '/icons/icon-512.png',
     categoryId: 'cat-pratos',
     categoryName: 'Pratos principais',
-    ingredients: ['couve', 'arroz', 'feijão', 'carne'],
+    ingredients: 'couve, arroz, feijão, carne',
     servings: 2,
     popular: true,
     isNew: false,
@@ -64,7 +65,7 @@ const mockDishes: Dish[] = [
     image: '/icons/icon-512.png',
     categoryId: 'cat-massas',
     categoryName: 'Massas',
-    ingredients: ['macarrão', 'molho de tomate', 'queijo', 'ervas'],
+    ingredients: 'macarrão, molho de tomate, queijo, ervas',
     servings: 2,
     popular: true,
     isNew: true,
@@ -83,7 +84,7 @@ const mockDishes: Dish[] = [
     image: '/icons/icon-512.png',
     categoryId: 'cat-sobremesas',
     categoryName: 'Sobremesas',
-    ingredients: ['banana', 'doce de leite', 'canela'],
+    ingredients: 'banana, doce de leite, canela',
     servings: 1,
     popular: false,
     isNew: true,
@@ -99,7 +100,7 @@ const mockDishes: Dish[] = [
     image: '/icons/icon-512.png',
     categoryId: 'cat-bebidas',
     categoryName: 'Bebidas',
-    ingredients: ['laranja', 'hortelã', 'gelo'],
+    ingredients: 'laranja, hortelã, gelo',
     servings: 1,
     popular: false,
     isNew: false,
@@ -141,11 +142,12 @@ function mapDishRow(row: any): Dish {
     image: image,
     categoryId: row.category_id || null,
     categoryName: row.category_name || row.categoryName || row.categories?.name || null,
-    ingredients: row.ingredients || null,
+    ingredients: typeof row.ingredients === 'string' ? row.ingredients : null,
     servings: row.servings ?? row.serves ?? null,
     popular: row.popular ?? row.is_featured ?? null,
     isNew: row.is_new || null,
-    isAvailable: row.is_available ?? true,
+    isAvailable: Number(row.stock ?? (row.is_available === false ? 0 : 1)) >= 1,
+    stock: Number(row.stock ?? (row.is_available === false ? 0 : 1)),
     position: row.position ?? 0,
     addons: normalizedAddons
   };
@@ -161,7 +163,7 @@ function filterDishes(dishes: Dish[], query?: { q?: string; categoryId?: string 
       dish.name,
       dish.description,
       dish.categoryName,
-      ...(dish.ingredients || [])
+      dish.ingredients
     ]
       .filter(Boolean)
       .join(' ')
@@ -217,8 +219,7 @@ export async function getDishBySlug(slug: string): Promise<Dish | undefined> {
     return mockDishes.find((dish) => dish.slug === slug);
   }
   if (!data) return mockDishes.find((dish) => dish.slug === slug);
-  const mapped = mapDishRow(data);
-  return mapped.isAvailable === false ? undefined : mapped;
+  return mapDishRow(data);
 }
 
 export async function searchDishes(query: { q?: string; categoryId?: string }): Promise<Dish[]> {

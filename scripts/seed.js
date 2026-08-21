@@ -27,10 +27,10 @@ async function main(){
 
   console.log('Seeding dishes...');
   const dishes = [
-    { code: 'PZ001', name: 'Pizza Margherita', slug: 'pizza-margherita', description: 'Tomate, mussarela e manjericão', price: 42.5, ingredients: ['tomate','mussarela','manjericão'], servings:2 },
-    { code: 'MS002', name: 'Spaghetti alla Carbonara', slug: 'spaghetti-alla-carbonara', description: 'Molho cremoso com pancetta', price: 39.0, ingredients: ['espaguete','pancetta','ovos'], servings:1 },
-    { code: 'SL003', name: 'Salada Caesar', slug: 'salada-caesar', description: 'Alface, croutons e molho especial', price: 28.0, ingredients: ['alface','croutons','parmesão'], servings:1 },
-    { code: 'SD004', name: 'Brownie de Doce de Leite', slug: 'brownie-doce-de-leite', description: 'Sobremesa quente com sorvete', price: 18.0, ingredients: ['chocolate','doce de leite'], servings:1 }
+    { code: 'PZ001', name: 'Pizza Margherita', slug: 'pizza-margherita', description: 'Tomate, mussarela e manjericão', price: 42.5, ingredients: 'tomate, mussarela, manjericão', servings:2 },
+    { code: 'MS002', name: 'Spaghetti alla Carbonara', slug: 'spaghetti-alla-carbonara', description: 'Molho cremoso com pancetta', price: 39.0, ingredients: 'espaguete, pancetta, ovos', servings:1 },
+    { code: 'SL003', name: 'Salada Caesar', slug: 'salada-caesar', description: 'Alface, croutons e molho especial', price: 28.0, ingredients: 'alface, croutons, parmesão', servings:1 },
+    { code: 'SD004', name: 'Brownie de Doce de Leite', slug: 'brownie-doce-de-leite', description: 'Sobremesa quente com sorvete', price: 18.0, ingredients: 'chocolate, doce de leite', servings:1 }
   ];
 
   for(const d of dishes){

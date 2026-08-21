@@ -1,70 +1,11 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { adminFetch } from '@/lib/adminFetch';
-
-type DashboardState = {
-  dishes: any[];
-  categories: any[];
-  banners: any[];
-  orders: any[];
-};
-
 export default function AdminDashboard() {
-  const [state, setState] = useState<DashboardState>({ dishes: [], categories: [], banners: [], orders: [] });
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    Promise.all([
-      adminFetch<any[]>('/api/admin/dishes'),
-      adminFetch<any[]>('/api/admin/categories'),
-      adminFetch<any[]>('/api/admin/banners'),
-      adminFetch<any[]>('/api/admin/orders')
-    ])
-      .then(([dishes, categories, banners, orders]) => {
-        setState({
-          dishes: Array.isArray(dishes) ? dishes : [],
-          categories: Array.isArray(categories) ? categories : [],
-          banners: Array.isArray(banners) ? banners : [],
-          orders: Array.isArray(orders) ? orders : []
-        });
-      })
-      .catch((e) => setError(e.message || 'Erro ao carregar o dashboard'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const recent = state.orders.slice(0, 5);
-  const activeDishes = state.dishes.filter((dish) => dish.is_available !== false).length;
-  const activeCategories = state.categories.filter((category) => category.is_active !== false).length;
-  const activeBanners = state.banners.filter((banner) => banner.active !== false).length;
-
-  return (
-    <>
-      <h1 className="mb-4 text-2xl font-display">Dashboard da loja</h1>
-      {loading && <div className="mb-4 rounded-2xl bg-white p-4 text-sm text-gray-600 shadow">Carregando dados do painel...</div>}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <div className="rounded-2xl bg-white p-4 shadow">Pedidos totais: {state.orders.length}</div>
-        <div className="rounded-2xl bg-white p-4 shadow">Pratos ativos: {activeDishes}</div>
-        <div className="rounded-2xl bg-white p-4 shadow">Categorias ativas: {activeCategories}</div>
-        <div className="rounded-2xl bg-white p-4 shadow">Promoções ativas: {activeBanners}</div>
-      </div>
-
-      <section className="mt-6">
-        <h2 className="mb-3 font-semibold">Pedidos recentes</h2>
-        <div className="space-y-2">
-          {recent.map((order) => (
-            <div key={order.code} className="flex justify-between rounded-2xl bg-white p-3 shadow">
-              <div>
-                <div className="font-medium">{order.code}</div>
-                <div className="text-sm text-gray-600">Status: {order.status}</div>
-              </div>
-              <div className="text-right">R$ {Number(order.total || 0).toFixed(2)}</div>
-            </div>
-          ))}
-          {recent.length === 0 && <div className="text-sm text-gray-600">Nenhum pedido recente.</div>}
-        </div>
-      </section>
-      {error && <div className="mt-4 text-sm text-red-600">{error}</div>}
-    </>
-  );
+  const [state, setState] = useState<any>({ dishes: [], beverages: [], orders: [] }); const [storeStatus, setStoreStatus] = useState<any>(null); const [error, setError] = useState('');
+  useEffect(() => { Promise.all([adminFetch<any[]>('/api/admin/dishes'), adminFetch<any[]>('/api/admin/beverages'), adminFetch<any[]>('/api/admin/orders')]).then(([dishes, beverages, orders]) => setState({ dishes, beverages, orders })).catch((e) => setError(e.message)); fetch('/api/store-status').then((r) => r.json()).then(setStoreStatus).catch(() => {}); }, []);
+  const stats = useMemo(() => { const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Recife' }); const today = fmt.format(new Date()); const ordersToday = state.orders.filter((o:any) => o.created_at && fmt.format(new Date(o.created_at)) === today && o.status !== 'Cancelado'); const inventory = [...state.dishes.map((x:any) => ({...x,kind:'Prato'})), ...state.beverages.map((x:any) => ({...x,kind:'Bebida'}))]; return { ordersToday, revenue: ordersToday.reduce((s:number,o:any)=>s+Number(o.total||0),0), preparing: state.orders.filter((o:any)=>o.status==='Em preparo').length, low: inventory.filter((x:any)=>[1,2].includes(Number(x.stock))).length, soldOut: inventory.filter((x:any)=>Number(x.stock)===0).length, available: inventory.filter((x:any)=>Number(x.stock)>=1).length, inventory }; }, [state]);
+  const cards:any[] = [['Pedidos hoje',stats.ordersToday.length,'/admin/orders?filter=Hoje'],['Faturamento hoje',`R$ ${stats.revenue.toFixed(2)}`,'/admin/orders?filter=Hoje'],['Em preparo',stats.preparing,'/admin/orders?filter=Em%20preparo'],['Estoque baixo',stats.low,'/admin/dishes'],['Esgotados',stats.soldOut,'/admin/dishes']];
+  return <><h1 className="mb-4 text-2xl font-display">Dashboard operacional</h1><div className={`mb-4 rounded-2xl p-4 text-white shadow ${storeStatus?.isOpen?'bg-green-700':'bg-amber-700'}`}><b>{storeStatus?.label||'Consultando funcionamento...'}</b><p className="text-sm opacity-90">Sexta, sábado e domingo, 11h–15h.</p></div><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{cards.map(([label,value,href])=><Link key={label} href={href} className="rounded-2xl bg-white p-4 shadow"><div className="text-sm text-gray-600">{label}</div><div className="mt-1 text-2xl font-bold">{value}</div></Link>)}</div><section className="mt-6 rounded-2xl bg-white p-4 shadow"><h2 className="font-semibold">Estoque de hoje</h2><p className="mt-1 text-sm text-gray-600">{stats.available} disponíveis · {stats.low} com estoque baixo · {stats.soldOut} esgotados</p><div className="mt-3 grid gap-2 md:grid-cols-2">{stats.inventory.filter((x:any)=>Number(x.stock)<=2).map((x:any)=><div key={`${x.kind}-${x.id}`} className={`rounded-xl border p-3 ${Number(x.stock)===0?'border-red-200 bg-red-50':'border-amber-200 bg-amber-50'}`}><b>{x.name}</b><span className="ml-2 text-xs text-gray-500">{x.kind}</span><div className={Number(x.stock)===0?'text-red-700':'text-amber-700'}>{Number(x.stock)===0?'Esgotado':`Restam ${x.stock}`}</div></div>)}</div></section>{error&&<p className="mt-4 text-red-600">{error}</p>}</>;
 }

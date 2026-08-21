@@ -23,7 +23,7 @@ export default function AdminDishesPage() {
     ingredients: '',
     servings: 1,
     position: 0,
-    isAvailable: true,
+    stock: 1,
     popular: false,
     isNew: false,
     addons: [] as DishAddon[],
@@ -76,7 +76,7 @@ export default function AdminDishesPage() {
       ingredients: '',
       servings: 1,
       position: 0,
-      isAvailable: true,
+      stock: 1,
       popular: false,
       isNew: false,
       addons: [] as DishAddon[],
@@ -98,12 +98,10 @@ export default function AdminDishesPage() {
       categoryId: dish.category_id || '',
       slug: dish.slug || '',
       description: dish.description || '',
-      ingredients: Array.isArray(dish.ingredients)
-        ? dish.ingredients.join(', ')
-        : dish.ingredients || '',
+      ingredients: typeof dish.ingredients === 'string' ? dish.ingredients : '',
       servings: dish.servings || dish.serves || 1,
       position: Number(dish.position || 0),
-      isAvailable: dish.is_available ?? true,
+      stock: Number(dish.stock ?? (dish.is_available === false ? 0 : 1)),
       popular: dish.popular ?? dish.is_featured ?? false,
       isNew: dish.is_new || false,
       addons,
@@ -148,12 +146,7 @@ export default function AdminDishesPage() {
         ...form,
         code: form.code || undefined,
         slug: form.slug || slugify(form.name),
-        ingredients: form.ingredients
-          ? form.ingredients
-              .split(',')
-              .map((part: string) => part.trim())
-              .filter(Boolean)
-          : null,
+        ingredients: form.ingredients.trim() || null,
         popular: form.popular,
         isNew: form.isNew,
         categoryId: form.categoryId || null,
@@ -184,12 +177,7 @@ export default function AdminDishesPage() {
         ...form,
         code: form.code || undefined,
         slug: form.slug || slugify(form.name),
-        ingredients: form.ingredients
-          ? form.ingredients
-              .split(',')
-              .map((part: string) => part.trim())
-              .filter(Boolean)
-          : null,
+        ingredients: form.ingredients.trim() || null,
         popular: form.popular,
         isNew: form.isNew,
         categoryId: form.categoryId || null,
@@ -220,6 +208,21 @@ export default function AdminDishesPage() {
       setError(e.message || 'Erro ao excluir');
       toastError(e?.message || 'Erro ao excluir');
     }
+  }
+
+  async function setStock(dish: any, stock: number) {
+    try {
+      const json = await adminFetch<any>(`/api/admin/dishes/${dish.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stock: Math.max(0, stock) }) });
+      setItems((current) => current.map((item) => item.id === dish.id ? json : item));
+    } catch (e: any) { toastError(e.message || 'Erro ao atualizar estoque'); }
+  }
+
+  async function duplicate(dish: any) {
+    try {
+      const suffix = Date.now().toString(36);
+      const created = await adminFetch<any>('/api/admin/dishes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `${dish.name} (cópia)`, price: dish.price, categoryId: dish.category_id || null, slug: `${slugify(dish.name)}-copia-${suffix}`, description: dish.description, ingredients: typeof dish.ingredients === 'string' ? dish.ingredients : null, servings: dish.servings || dish.serves || 1, position: dish.position || 0, popular: false, isNew: false, extras: dish.extras || null, image: dish.image_url || dish.image || null, stock: 0 }) });
+      setItems((current) => [created, ...current]); toastSuccess('Prato duplicado com estoque 0 para revisão');
+    } catch (e: any) { toastError(e.message || 'Erro ao duplicar prato'); }
   }
 
   const submitLabel = editingId ? 'Salvar alterações' : 'Criar prato';
@@ -288,6 +291,9 @@ export default function AdminDishesPage() {
                   className="border p-3 rounded w-full"
                 />
               </AdminField>
+              <AdminField label="Estoque" help="1 ou mais: disponível. 0: esgotado automaticamente.">
+                <input type="number" min="0" step="1" value={form.stock} onChange={(e) => setForm({ ...form, stock: Math.max(0, parseInt(e.target.value || '0', 10)) })} className="border p-3 rounded w-full" />
+              </AdminField>
             </div>
             <AdminField label="Descrição" help="Descrição curta e atrativa exibida no cardápio.">
               <textarea
@@ -347,19 +353,7 @@ export default function AdminDishesPage() {
                     Marque para destacar entre os pratos mais pedidos.
                   </span>
                 </label>
-                <label className="block sm:col-span-2">
-                  <span className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={form.isAvailable}
-                      onChange={(e) => setForm({ ...form, isAvailable: e.target.checked })}
-                    />
-                    <span>Disponível na loja</span>
-                  </span>
-                  <span className="mt-1 block text-xs text-gray-500">
-                    Desmarque quando o prato estiver esgotado ou temporariamente indisponível.
-                  </span>
-                </label>
+                <p className="text-xs text-gray-500 sm:col-span-2">A disponibilidade normal é definida automaticamente pelo estoque.</p>
               </div>
             </fieldset>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -595,8 +589,8 @@ export default function AdminDishesPage() {
                 R$ {Number(d.price || 0).toFixed(2)} • Serve {d.servings || d.serves || 1} pessoa(s)
               </div>
               <div className="text-sm text-gray-600 mt-1">
-                Código: {d.code || '—'} • Ordem: {d.position ?? 0} •{' '}
-                {d.is_available === false ? 'Indisponível' : 'Disponível'}
+                Código: {d.code || '—'} • Ordem: {d.position ?? 0} • Estoque: {d.stock ?? 0} •{' '}
+                {Number(d.stock || 0) < 1 ? 'Esgotado' : 'Disponível'}
               </div>
               <div className="text-sm text-gray-600 mt-1">
                 Categoria: {categories.find((c) => c.id === d.category_id)?.name || 'Sem categoria'}
@@ -605,8 +599,12 @@ export default function AdminDishesPage() {
                 Adicionais: {normalizeDishAddons(d.extras ?? d.addons ?? null).length}
               </div>
               <div className="text-sm text-gray-600 mt-2 line-clamp-2">{d.description}</div>
+              {Number(d.stock || 0) > 0 && Number(d.stock || 0) <= 2 && <div className="mt-2 font-semibold text-amber-700">Restam {d.stock}</div>}
             </div>
             <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-2"><button aria-label={`Diminuir estoque de ${d.name}`} onClick={() => setStock(d, Number(d.stock || 0) - 1)} disabled={Number(d.stock || 0) < 1} className="rounded border px-3 py-2 disabled:opacity-40">−</button><b className="min-w-8 text-center">{d.stock || 0}</b><button aria-label={`Aumentar estoque de ${d.name}`} onClick={() => setStock(d, Number(d.stock || 0) + 1)} className="rounded border px-3 py-2">+</button><button onClick={() => setStock(d, 0)} className="rounded border border-red-200 px-3 py-2 text-sm text-red-700">Zerar estoque</button></div>
+              <a href={`/dishes/${d.slug}`} target="_blank" rel="noreferrer" className="w-full rounded border px-4 py-2 text-center sm:w-auto">Ver no cardápio</a>
+              <button type="button" className="w-full rounded border px-4 py-2 sm:w-auto" onClick={() => duplicate(d)}>Duplicar</button>
               <button
                 type="button"
                 className="w-full sm:w-auto py-2 px-4 border rounded"

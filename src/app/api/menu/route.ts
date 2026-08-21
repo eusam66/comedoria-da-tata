@@ -11,10 +11,12 @@ export async function GET() {
         name: dish.name,
         cat: dish.categoryName || 'Pratos',
         desc: dish.description || 'Receita caseira preparada com carinho.',
+        ingredients: dish.ingredients || '',
         price: Number(dish.price) || 0,
         image: dish.image || null,
         tag: dish.isNew ? 'Novidade' : dish.popular ? 'Mais pedido' : 'Da casa',
-        available: dish.isAvailable !== false
+        stock: Number(dish.stock ?? (dish.isAvailable === false ? 0 : 1)),
+        available: Number(dish.stock ?? (dish.isAvailable === false ? 0 : 1)) >= 1
       }))
     );
   } catch (error) {

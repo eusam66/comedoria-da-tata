@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS dishes (
   price numeric NOT NULL DEFAULT 0,
   image text,
   category_id uuid REFERENCES categories(id) ON DELETE SET NULL,
-  ingredients text[],
+  ingredients text,
   servings int,
   popular boolean DEFAULT false,
   is_new boolean DEFAULT false,

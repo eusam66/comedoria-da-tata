@@ -34,6 +34,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <nav className="flex flex-col gap-2">
             <Link href="/admin" className={linkClass('/admin')}>Dashboard</Link>
             <Link href="/admin/dishes" className={linkClass('/admin/dishes')}>Pratos</Link>
+            <Link href="/admin/beverages" className={linkClass('/admin/beverages')}>Bebidas</Link>
             <Link href="/admin/categories" className={linkClass('/admin/categories')}>Categorias</Link>
             <Link href="/admin/banners" className={linkClass('/admin/banners')}>Promoções</Link>
             <Link href="/admin/orders" className={linkClass('/admin/orders')}>Pedidos</Link>
@@ -55,6 +56,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <Link href="/admin/dishes" className="flex flex-col items-center text-xs">
           <span className="w-8 h-8 rounded-full bg-brand-beige flex items-center justify-center">🍽️</span>
           <span className="mt-1">Pratos</span>
+        </Link>
+        <Link href="/admin/beverages" className="flex flex-col items-center text-xs">
+          <span className="w-8 h-8 rounded-full bg-brand-beige flex items-center justify-center">🥤</span><span className="mt-1">Bebidas</span>
         </Link>
         <Link href="/admin/categories" className="flex flex-col items-center text-xs">
           <span className="w-8 h-8 rounded-full bg-brand-beige flex items-center justify-center">📚</span>

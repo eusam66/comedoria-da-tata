@@ -22,13 +22,14 @@ export type DishRow = {
   image?: string | null;
   image_url?: string | null;
   category_id?: string | null;
-  ingredients?: string[] | null;
+  ingredients?: string | null;
   servings?: number | null;
   serves?: number | null;
   popular?: boolean | null;
   is_featured?: boolean | null;
   is_new?: boolean | null;
   is_available?: boolean | null;
+  stock?: number | null;
   position?: number | null;
   extras?: any | null;
   addons?: Array<{
@@ -92,8 +93,7 @@ export type OrderRow = {
 export type OrderHistoryRow = {
   id: string;
   order_id: string;
-  previous_status?: string | null;
-  new_status: string;
-  note?: string | null;
+  event?: string | null;
+  payload?: Record<string, unknown> | null;
   created_at?: string | null;
 };
