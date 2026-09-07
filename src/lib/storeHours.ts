@@ -5,6 +5,7 @@ export type DaySchedule = { enabled: boolean; open: string; close: string };
 export type OpeningHours = Record<Weekday, DaySchedule>;
 
 export type StorefrontSettings = {
+  orderOverride?: { mode: 'automatic' | 'open' | 'closed'; expiresAt: string | null; updated_at?: string };
   timezone?: string;
   temporarilyClosed?: boolean;
   openingHours?: Partial<OpeningHours>;
@@ -13,6 +14,8 @@ export type StorefrontSettings = {
 };
 
 export type StoreStatus = {
+  mode?: 'automatic' | 'open' | 'closed';
+  expiresAt?: string | null;
   isOpen: boolean;
   label: string;
   nextOpeningLabel: string | null;
@@ -67,6 +70,15 @@ function localParts(now: Date, timezone: string) {
 }
 
 export function calculateStoreStatus(settings: StorefrontSettings = {}, now = new Date()): StoreStatus {
+  const override = settings.orderOverride;
+  if (override?.mode === 'closed') {
+    return { isOpen: false, label: 'Pedidos fechados manualmente', nextOpeningLabel: null, temporarilyClosed: true, timezone: STORE_TIMEZONE, mode: 'closed', expiresAt: null };
+  }
+  if (override?.mode === 'open' && override.expiresAt && Date.parse(override.expiresAt) > now.getTime()) {
+    return { isOpen: true, label: 'Aberto agora', nextOpeningLabel: null, temporarilyClosed: false, timezone: STORE_TIMEZONE, mode: 'open', expiresAt: override.expiresAt };
+  }
+  // An expired opening is automatically ineffective, even without a browser or scheduled job.
+  if (override) settings = { ...settings, temporarilyClosed: false };
   const timezone = settings.timezone || STORE_TIMEZONE;
   const schedule = normalizeOpeningHours(settings.openingHours);
   const local = localParts(now, timezone);

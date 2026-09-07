@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/components/CartContext';
+import { useStoreStatus } from '@/lib/useStoreStatus';
 import type { DishRow } from '@/lib/types';
 import './storefront.css';
 import './storefront-enhancements.css';
@@ -138,11 +139,7 @@ export default function Home() {
   const [dishes, setDishes] = useState<Dish[]>(fallbackDishes);
   const [beverages, setBeverages] = useState<Dish[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
-  const [storeStatus, setStoreStatus] = useState<{
-    isOpen: boolean;
-    label?: string;
-    nextOpeningLabel?: string;
-  } | null>(null);
+  const storeStatus = useStoreStatus();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('Todos');
   const [cartOpen, setCartOpen] = useState(false);
@@ -214,10 +211,6 @@ export default function Home() {
             : []
         )
       )
-      .catch(() => {});
-    fetch('/api/store-status')
-      .then((response) => response.json())
-      .then(setStoreStatus)
       .catch(() => {});
     fetch('/api/banners')
       .then((response) => (response.ok ? response.json() : []))
@@ -685,7 +678,7 @@ export default function Home() {
             )}
             <button
               className="continue"
-              disabled={!count || storeStatus?.isOpen === false}
+              disabled={!count || !storeStatus?.isOpen}
               onClick={() => {
                 setCartOpen(false);
                 setCheckoutOpen(true);
@@ -877,7 +870,7 @@ export default function Home() {
               <button
                 className="whatsapp-submit"
                 type="submit"
-                disabled={submitting || storeStatus?.isOpen === false}
+                disabled={submitting || !storeStatus?.isOpen}
               >
                 {submitting
                   ? 'Registrando pedido...'

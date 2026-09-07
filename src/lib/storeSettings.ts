@@ -2,17 +2,20 @@ import supabaseAdmin from './supabaseAdmin';
 import { calculateStoreStatus, type StorefrontSettings } from './storeHours';
 
 export async function getStorefrontSettings(): Promise<StorefrontSettings> {
-  if (!supabaseAdmin) return {};
+  if (!supabaseAdmin) throw new Error('Configurações de funcionamento indisponíveis.');
   const { data, error } = await (supabaseAdmin as any)
     .from('restaurant_settings')
-    .select('value')
-    .eq('key', 'storefront')
-    .maybeSingle();
+    .select('key,value')
+    .in('key', ['storefront', 'order_operations']);
   if (error) throw error;
-  return data?.value && typeof data.value === 'object' ? data.value : {};
+  const settings = data?.find((row: any) => row.key === 'storefront')?.value || {};
+  const orderOverride = data?.find((row: any) => row.key === 'order_operations')?.value;
+  return { ...settings, ...(orderOverride ? { orderOverride } : {}) };
 }
 
-export async function getCurrentStoreStatus(now = new Date()) {
-  return calculateStoreStatus(await getStorefrontSettings(), now);
+export async function getCurrentStoreStatus(now?: Date) {
+  const settings = await getStorefrontSettings();
+  const status = calculateStoreStatus(settings, now ?? new Date());
+  return { ...status, mode: status.mode ?? (status.temporarilyClosed ? 'closed' : 'automatic'), expiresAt: status.expiresAt ?? null };
 }
 

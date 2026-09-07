@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { toastSuccess, toastError } from '../../../lib/toast';
 import { adminFetch } from '../../../lib/adminFetch';
 import AdminField from '../../../components/AdminField';
+import OrderOperations from '@/components/OrderOperations';
 
 type StoreSettingsForm = {
   name: string;
@@ -69,6 +70,7 @@ export default function AdminSettings() {
   return (
     <>
       <h1 className="mb-4 text-2xl font-display">Configurações da loja</h1>
+      <OrderOperations />
       <div className="rounded-2xl bg-white p-4 shadow">
         {loading ? (
           <div className="text-sm text-gray-600">Carregando configurações...</div>
