@@ -1,6 +1,7 @@
 import { generateOrderCode } from './orders';
 import supabaseAdmin from './supabaseAdmin';
 import { slugify } from './slug';
+import type { OrderFulfillment } from './deliveryZones';
 import {
   removeStorageFileByPublicUrl,
   removeStorageFileByPublicUrlIfUnreferenced,
@@ -353,6 +354,7 @@ export type OrderMetadata = {
   name?: string;
   phone?: string;
   delivery?: 'delivery' | 'pickup';
+  fulfillment?: OrderFulfillment;
   street?: string;
   number?: string;
   neighborhood?: string;

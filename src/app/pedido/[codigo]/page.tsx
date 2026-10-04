@@ -1,6 +1,7 @@
 import React from 'react';
 import { notFound } from 'next/navigation';
 import { adminGetOrderByCode, type Order } from '../../../lib/adminApi';
+import OrderFulfillmentDetails from '@/components/OrderFulfillmentDetails';
 
 export async function generateMetadata({ params }: { params: Promise<{ codigo: string }> }) {
   const resolvedParams = await params;
@@ -22,6 +23,7 @@ export default async function OrderPage({ params }: { params: Promise<{ codigo: 
         <div className="bg-white p-6 rounded shadow">
           <h1 className="text-2xl font-display mb-2">Pedido {order.code}</h1>
           <div className="text-sm text-gray-600 mb-4">Total: R$ {order.total.toFixed(2)}</div>
+          <div className="mb-4 text-sm"><OrderFulfillmentDetails metadata={order.metadata} address={order.customer_address} /></div>
 
           <div className="space-y-3">
             {timeline.map((t)=> (

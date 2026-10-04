@@ -6,6 +6,9 @@ import Link from 'next/link';
 import { useCart } from '@/components/CartContext';
 import { useStoreStatus } from '@/lib/useStoreStatus';
 import type { DishRow } from '@/lib/types';
+import { checkoutTotalCents } from '@/lib/deliveryZones';
+import type { OrderFulfillment } from '@/lib/deliveryZones';
+import { useDeliveryZones } from '@/lib/useDeliveryZones';
 import './storefront.css';
 import './storefront-enhancements.css';
 
@@ -149,6 +152,7 @@ export default function Home() {
     name: '',
     phone: '',
     delivery: 'delivery',
+    delivery_zone_id: '',
     street: '',
     number: '',
     neighborhood: '',
@@ -158,6 +162,9 @@ export default function Home() {
     change: '',
     notes: '',
   });
+  const deliveryZones = useDeliveryZones(checkoutOpen && customer.delivery === 'delivery');
+  const selectedZone = deliveryZones.zones.find((zone) => zone.id === customer.delivery_zone_id);
+  const checkoutTotal = checkoutTotalCents(total, customer.delivery, selectedZone) / 100;
 
   useEffect(() => {
     if (window.location.hash.includes('type=recovery')) {
@@ -262,10 +269,19 @@ export default function Home() {
     }
   };
   const setField = (field: string, value: string) =>
-    setCustomer((current) => ({ ...current, [field]: value }));
+    setCustomer((current) => ({
+      ...current,
+      [field]: value,
+      ...(field === 'delivery' ? { delivery_zone_id: '' } : {}),
+    }));
 
   const submitOrder = async (event: FormEvent) => {
     event.preventDefault();
+    if (submitting) return;
+    if (customer.delivery === 'delivery' && (!selectedZone || deliveryZones.loading || deliveryZones.error)) {
+      alert('Selecione uma localização de entrega disponível.');
+      return;
+    }
     setSubmitting(true);
     try {
       const response = await fetch('/api/orders', {
@@ -286,17 +302,21 @@ export default function Home() {
         }),
       });
       const saved = await response.json();
+      if (!response.ok && /^DELIVERY_ZONE_/.test(saved.code || '')) {
+        setField('delivery_zone_id', '');
+        deliveryZones.refresh();
+      }
       if (!response.ok) throw new Error(saved.error || 'Não foi possível registrar o pedido.');
-      const lines = items.map((item) => {
+      const lines = saved.items.map((item: { quantity: number; name: string; price: number; notes?: string; addons?: Array<{ qty: number; name: string }> }) => {
         const addons =
-          item.selectedAddons.length > 0
-            ? `\n  + ${item.selectedAddons
+          item.addons && item.addons.length > 0
+            ? `\n  + ${item.addons
                 .map((addon) => `${addon.qty}x ${addon.name}`)
                 .join(', ')}`
             : '';
         const notes = item.notes ? `\n  Obs.: ${item.notes}` : '';
-        return `• ${item.qty}x ${item.dish.name} — ${money(
-          item.unitPrice * item.qty
+        return `• ${item.quantity}x ${item.name} — ${money(
+          Number(item.price) * item.quantity
         )}${addons}${notes}`;
       });
       const payment =
@@ -312,12 +332,16 @@ export default function Home() {
             }${customer.complement ? `\n*Complemento:* ${customer.complement}` : ''}${
               customer.reference ? `\n*Referência:* ${customer.reference}` : ''
             }`
-          : '🏠 *Retirada no local*';
+          : '🏠 *Retirada na Comedoria*';
+      const snapshot = saved.fulfillment as OrderFulfillment | null;
+      const deliverySummary = snapshot?.type === 'delivery'
+        ? `\n\n*Subtotal:* ${money(saved.subtotalCents / 100)}\n*Entrega:* ${snapshot.delivery_zone_name} — ${money(snapshot.delivery_fee)}`
+        : '';
       const message = `🟠 *NOVO PEDIDO #${saved.code}*\n\n👤 *Cliente:* ${
         customer.name
       }\n📱 *Telefone:* ${customer.phone}\n\n${address}\n\n🍽️ *ITENS*\n${lines.join(
         '\n'
-      )}\n\n💰 *Total: ${money(saved.totalCents / 100)}*\n💳 *Pagamento:* ${payment}${
+      )}${deliverySummary}\n\n💰 *Total: ${money(saved.totalCents / 100)}*\n💳 *Pagamento:* ${payment}${
         customer.notes ? `\n\n📝 *Observações:* ${customer.notes}` : ''
       }\n\nPedido enviado pelo cardápio da Comedoria da Tata.`;
       clear();
@@ -758,6 +782,24 @@ export default function Home() {
                 </div>
               </fieldset>
               {customer.delivery === 'delivery' && (
+                <label>
+                  Onde será a entrega?
+                  <select
+                    required
+                    value={customer.delivery_zone_id}
+                    disabled={deliveryZones.loading || submitting}
+                    onChange={(event) => setField('delivery_zone_id', event.target.value)}
+                  >
+                    <option value="">Selecione a localização</option>
+                    {deliveryZones.zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name} — {money(zone.fee)}</option>)}
+                  </select>
+                  {deliveryZones.loading ? <span role="status">Carregando localizações...</span> : deliveryZones.error ? (
+                    <span role="alert">{deliveryZones.error}</span>
+                  ) : !deliveryZones.zones.length ? <span>Entrega indisponível no momento. Escolha retirada.</span> : null}
+                  {deliveryZones.error && <button type="button" onClick={deliveryZones.refresh}>Tentar novamente</button>}
+                </label>
+              )}
+              {customer.delivery === 'delivery' && (
                 <div className="address-fields">
                   <label className="wide">
                     Rua / avenida
@@ -857,9 +899,15 @@ export default function Home() {
                   placeholder="Ex.: retirar cebola, chamar no portão..."
                 />
               </label>
-              <div className="checkout-total">
+              {customer.delivery === 'delivery' && (
+                <div className="checkout-breakdown" aria-live="polite">
+                  <div><span>Produtos</span><b>{money(total)}</b></div>
+                  <div><span>Entrega{selectedZone ? ` — ${selectedZone.name}` : ''}</span><b>{selectedZone ? money(selectedZone.fee) : 'Selecione a localização'}</b></div>
+                </div>
+              )}
+              <div className="checkout-total" aria-live="polite">
                 <span>Total do pedido</span>
-                <strong>{money(total)}</strong>
+                <strong>{money(checkoutTotal)}</strong>
               </div>
               {storeStatus?.isOpen === false && (
                 <p className="closed-notice">
@@ -870,7 +918,7 @@ export default function Home() {
               <button
                 className="whatsapp-submit"
                 type="submit"
-                disabled={submitting || !storeStatus?.isOpen}
+                disabled={submitting || !storeStatus?.isOpen || (customer.delivery === 'delivery' && (deliveryZones.loading || !!deliveryZones.error || !selectedZone))}
               >
                 {submitting
                   ? 'Registrando pedido...'

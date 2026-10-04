@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import supabaseAdmin from '@/lib/supabaseAdmin';
 import { generateOrderCode } from '@/lib/orders';
 import { getCurrentStoreStatus } from '@/lib/storeSettings';
+import { isZoneId, readFulfillment } from '@/lib/deliveryZones';
 
 const clean = (value: unknown, max = 180) =>
   String(value ?? '')
@@ -31,6 +32,11 @@ export async function POST(req: Request) {
     const name = clean(customer.name, 100);
     const phone = clean(customer.phone, 30);
     const delivery = customer.delivery === 'pickup' ? 'pickup' : 'delivery';
+    if (delivery === 'delivery' && !isZoneId(customer.delivery_zone_id))
+      return NextResponse.json(
+        { error: 'Selecione a localização de entrega.', code: 'DELIVERY_ZONE_REQUIRED' },
+        { status: 400 }
+      );
     if (!name || !phone || !requested.length)
       return NextResponse.json(
         { error: 'Preencha seus dados e adicione ao menos um item.' },
@@ -57,6 +63,7 @@ export async function POST(req: Request) {
       phone,
       address,
       delivery,
+      delivery_zone_id: delivery === 'delivery' ? customer.delivery_zone_id : null,
       street: clean(customer.street),
       number: clean(customer.number, 30),
       neighborhood: clean(customer.neighborhood),
@@ -86,6 +93,14 @@ export async function POST(req: Request) {
       p_items: items,
     });
     if (error) {
+      if (/DELIVERY_ZONE_REQUIRED|DELIVERY_ZONE_UNAVAILABLE/.test(error.message || ''))
+        return NextResponse.json(
+          {
+            error: 'Esta localização não está disponível. Selecione outra localização de entrega.',
+            code: 'DELIVERY_ZONE_UNAVAILABLE',
+          },
+          { status: 409 }
+        );
       if (/INSUFFICIENT_STOCK|INVALID_PRODUCT/.test(error.message || ''))
         return NextResponse.json(
           { error: 'Um item ficou sem estoque. Revise sua sacola.' },
@@ -94,11 +109,14 @@ export async function POST(req: Request) {
       throw error;
     }
     const order = Array.isArray(data) ? data[0] : data;
+    const fulfillment = readFulfillment(order.metadata);
     return NextResponse.json({
       id: order.id,
       code: order.code,
       totalCents: Math.round(Number(order.total) * 100),
       items: order.items,
+      fulfillment,
+      subtotalCents: Math.round(Number(fulfillment?.subtotal ?? order.total) * 100),
     });
   } catch (error) {
     console.error('public POST orders', error);

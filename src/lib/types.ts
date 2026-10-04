@@ -1,3 +1,4 @@
+import type { OrderFulfillment } from './deliveryZones';
 // Tipos TypeScript para as tabelas Supabase
 
 export type CategoryRow = {
@@ -78,6 +79,7 @@ export type OrderRow = {
     name?: string;
     phone?: string;
     delivery?: 'delivery' | 'pickup';
+    fulfillment?: OrderFulfillment;
     street?: string;
     number?: string;
     neighborhood?: string;

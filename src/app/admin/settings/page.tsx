@@ -4,6 +4,7 @@ import { toastSuccess, toastError } from '../../../lib/toast';
 import { adminFetch } from '../../../lib/adminFetch';
 import AdminField from '../../../components/AdminField';
 import OrderOperations from '@/components/OrderOperations';
+import DeliveryZonesSettings from '@/components/DeliveryZonesSettings';
 
 type StoreSettingsForm = {
   name: string;
@@ -142,18 +143,6 @@ export default function AdminSettings() {
                 />
               </AdminField>
               <AdminField
-                label="Taxa de entrega"
-                help="Valor cobrado pela entrega; use 0,00 quando for grátis."
-              >
-                <input
-                  inputMode="decimal"
-                  value={form.deliveryFee}
-                  onChange={(e) => setForm({ ...form, deliveryFee: e.target.value })}
-                  placeholder="Ex.: 8,00"
-                  className="w-full rounded border p-3"
-                />
-              </AdminField>
-              <AdminField
                 label="Aviso para os clientes"
                 help="Mensagem importante exibida durante o pedido, como horários ou regiões atendidas."
               >
@@ -205,6 +194,7 @@ export default function AdminSettings() {
         </div>
         {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
       </div>
+      <DeliveryZonesSettings />
     </>
   );
 }
