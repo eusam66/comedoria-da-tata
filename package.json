@@ -6,11 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint . --ext .js,.cjs,.ts,.tsx",
     "format": "prettier --write .",
     "db:create-buckets": "node scripts/create_buckets.js",
     "db:seed": "node scripts/seed.js",
-    "test:hours": "node --experimental-strip-types --test src/lib/storeHours.test.ts"
+    "test:hours": "node --experimental-strip-types --test src/lib/storeHours.test.ts",
+    "test:checkout": "node --experimental-strip-types --test --test-isolation=none src/lib/whatsapp.test.ts src/lib/orderIdempotency.test.ts scripts/service-worker.test.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.28.0",
@@ -26,7 +27,7 @@
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.0.0",
     "eslint": "^8.0.0",
-    "eslint-config-next": "^13.0.0",
+    "eslint-config-next": "15.5.22",
     "postcss": "^8.0.0",
     "prettier": "^2.0.0",
     "tailwindcss": "^4.0.0",

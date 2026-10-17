@@ -1,7 +1,9 @@
 import React from 'react';
+import { whatsappUrl } from '@/lib/whatsapp';
 
 export default function WhatsAppButton({ phone }: { phone: string }) {
-  const href = `https://wa.me/${phone.replace(/\D/g, '')}`;
+  const href = whatsappUrl('', phone);
+  if (!href) return null;
   return (
     <a
       href={href}

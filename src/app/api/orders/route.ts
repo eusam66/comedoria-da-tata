@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { createOrderOnce, IdempotencyConflict } from '@/lib/orderIdempotency';
 import { NextResponse } from 'next/server';
 import supabaseAdmin from '@/lib/supabaseAdmin';
 import { generateOrderCode } from '@/lib/orders';
@@ -15,6 +17,22 @@ export async function POST(req: Request) {
         { error: 'Pedidos temporariamente indisponíveis.' },
         { status: 503 }
       );
+    const client = supabaseAdmin as any;
+    const idempotencyKey = req.headers.get('Idempotency-Key');
+    if (!idempotencyKey || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey))
+      return NextResponse.json({ error: 'Reabra o checkout para registrar o pedido.', code: 'IDEMPOTENCY_KEY_REQUIRED' }, { status: 400 });
+    const body = await req.json();
+    const fingerprint = createHash('sha256').update(JSON.stringify(body)).digest('hex');
+    const find = async () => {
+      const { data, error } = await client.from('orders').select('*').eq('id', idempotencyKey).maybeSingle();
+      if (error) throw error;
+      return data;
+    };
+    const existing = await find();
+    if (existing) {
+      if (existing.metadata?.checkout_fingerprint !== fingerprint) throw new IdempotencyConflict();
+      return orderResponse(existing);
+    }
     const store = await getCurrentStoreStatus();
     if (!store.isOpen)
       return NextResponse.json(
@@ -26,7 +44,6 @@ export async function POST(req: Request) {
         },
         { status: 409 }
       );
-    const body = await req.json();
     const customer = body?.customer || {};
     const requested = Array.isArray(body?.items) ? body.items.slice(0, 30) : [];
     const name = clean(customer.name, 100);
@@ -59,6 +76,7 @@ export async function POST(req: Request) {
             .filter(Boolean)
             .join(', ');
     const safeCustomer = {
+      checkout_fingerprint: fingerprint,
       name,
       phone,
       address,
@@ -86,43 +104,45 @@ export async function POST(req: Request) {
           : [],
       }))
       .filter((item: any) => item.id);
-    const { data, error } = await (supabaseAdmin as any).rpc('create_order_with_stock', {
-      p_id: crypto.randomUUID(),
-      p_code: generateOrderCode(),
-      p_customer: safeCustomer,
-      p_items: items,
+    const order = await createOrderOnce<any>(fingerprint, find, async () => {
+      const { data, error } = await client.rpc('create_order_with_stock', {
+        p_id: idempotencyKey,
+        p_code: generateOrderCode(),
+        p_customer: safeCustomer,
+        p_items: items,
+      });
+      if (error) throw error;
+      return Array.isArray(data) ? data[0] : data;
     });
-    if (error) {
-      if (/DELIVERY_ZONE_REQUIRED|DELIVERY_ZONE_UNAVAILABLE/.test(error.message || ''))
-        return NextResponse.json(
-          {
-            error: 'Esta localização não está disponível. Selecione outra localização de entrega.',
-            code: 'DELIVERY_ZONE_UNAVAILABLE',
-          },
-          { status: 409 }
-        );
-      if (/INSUFFICIENT_STOCK|INVALID_PRODUCT/.test(error.message || ''))
-        return NextResponse.json(
-          { error: 'Um item ficou sem estoque. Revise sua sacola.' },
-          { status: 409 }
-        );
-      throw error;
-    }
-    const order = Array.isArray(data) ? data[0] : data;
-    const fulfillment = readFulfillment(order.metadata);
-    return NextResponse.json({
-      id: order.id,
-      code: order.code,
-      totalCents: Math.round(Number(order.total) * 100),
-      items: order.items,
-      fulfillment,
-      subtotalCents: Math.round(Number(fulfillment?.subtotal ?? order.total) * 100),
-    });
+    return orderResponse(order);
   } catch (error) {
+    const message = error && typeof error === 'object' && 'message' in error ? String(error.message) : '';
+    if (error instanceof IdempotencyConflict)
+      return NextResponse.json({ error: 'Esta tentativa pertence a outro pedido. Reabra a confirmação original.', code: 'IDEMPOTENCY_CONFLICT' }, { status: 409 });
+    if (/DELIVERY_ZONE_REQUIRED|DELIVERY_ZONE_UNAVAILABLE/.test(message))
+      return NextResponse.json({ error: 'Esta localização não está disponível. Selecione outra localização de entrega.', code: 'DELIVERY_ZONE_UNAVAILABLE' }, { status: 409 });
+    if (/INSUFFICIENT_STOCK|INVALID_PRODUCT/.test(message))
+      return NextResponse.json({ error: 'Um item ficou sem estoque. Revise sua sacola.' }, { status: 409 });
+    if (/EMPTY_ORDER|TOO_MANY_ITEMS|INVALID_ITEM|DUPLICATE_PRODUCT|INVALID_ADDON|REQUIRED_ADDON/.test(message))
+      return NextResponse.json({ error: 'Revise os itens e adicionais da sacola.' }, { status: 400 });
     console.error('public POST orders', error);
     return NextResponse.json(
       { error: 'Não foi possível registrar o pedido agora.' },
       { status: 500 }
     );
   }
+}
+
+// Somente valores históricos persistidos: reabrir nunca recalcula preço ou taxa.
+function orderResponse(order: any) {
+  const fulfillment = readFulfillment(order.metadata);
+  const customer = { ...order.metadata };
+  delete customer.checkout_fingerprint;
+  delete customer.fulfillment;
+  return NextResponse.json({
+    id: order.id, code: order.code,
+    totalCents: Math.round(Number(order.total) * 100), items: order.items,
+    fulfillment, customer,
+    subtotalCents: Math.round(Number(fulfillment?.subtotal ?? order.total) * 100),
+  }, { headers: { 'Cache-Control': 'no-store' } });
 }

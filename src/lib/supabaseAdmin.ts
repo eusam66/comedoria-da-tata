@@ -1,4 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
+import { validateHomologationEnvironment } from './environment';
+
+validateHomologationEnvironment(process.env);
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';

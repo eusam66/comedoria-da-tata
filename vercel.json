@@ -1,3 +1,8 @@
 {
-  "version": 2
+  "version": 2,
+  "git": {
+    "deploymentEnabled": {
+      "fix/estabilizacao-checkout-cloud": false
+    }
+  }
 }

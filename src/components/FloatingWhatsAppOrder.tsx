@@ -1,8 +1,10 @@
 'use client';
 import React from 'react';
+import { whatsappUrl } from '@/lib/whatsapp';
 
 export default function FloatingWhatsAppOrder({ phone, message }: { phone: string; message: string }) {
-  const href = `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+  const href = whatsappUrl(message, phone);
+  if (!href) return null;
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4 md:bottom-8">
       <a

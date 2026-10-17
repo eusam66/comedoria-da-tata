@@ -6,3 +6,11 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+
+# Credenciais locais; somente modelos sem valores podem ser versionados.
+.env
+.env.*
+!.env.example
+
+# Saídas locais dos testes de homologação e capturas de navegador.
+artifacts/

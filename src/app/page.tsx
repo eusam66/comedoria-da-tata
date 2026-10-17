@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/components/CartContext';
 import { useStoreStatus } from '@/lib/useStoreStatus';
 import type { DishRow } from '@/lib/types';
 import { checkoutTotalCents } from '@/lib/deliveryZones';
-import type { OrderFulfillment } from '@/lib/deliveryZones';
+import { whatsappUrl, type SavedOrder } from '@/lib/whatsapp';
+import OrderConfirmation from '@/components/OrderConfirmation';
 import { useDeliveryZones } from '@/lib/useDeliveryZones';
 import './storefront.css';
 import './storefront-enhancements.css';
@@ -148,6 +148,12 @@ export default function Home() {
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const submitLock = useRef(false);
+  const pending = useRef<{ key: string; body: string } | null>(null);
+  const [receipt, setReceipt] = useState<SavedOrder | null>(null);
+  const [receiptVisible, setReceiptVisible] = useState(true);
+  const [checkoutError, setCheckoutError] = useState('');
+  const [retryPending, setRetryPending] = useState(false);
   const [customer, setCustomer] = useState({
     name: '',
     phone: '',
@@ -170,6 +176,16 @@ export default function Home() {
     if (window.location.hash.includes('type=recovery')) {
       window.location.replace(`/admin/reset-password${window.location.hash}`);
     }
+    try {
+      const saved = sessionStorage.getItem('tata-checkout-receipt');
+      if (saved) setReceipt(JSON.parse(saved));
+      const attempt = sessionStorage.getItem('tata-checkout-pending');
+      if (attempt) {
+        pending.current = JSON.parse(attempt);
+        setRetryPending(true);
+        setCheckoutOpen(true);
+      }
+    } catch { /* Armazenamento pode estar indisponível em navegação privada. */ }
     const search = new URLSearchParams(window.location.search);
     if (search.get('checkout') === '1') {
       setCheckoutOpen(true);
@@ -241,6 +257,7 @@ export default function Home() {
     [dishes, query, category]
   );
   const count = itemCount;
+  const contactWhatsAppUrl = whatsappUrl();
 
   const asCartDish = (dish: Dish): DishRow => ({
     id: keyOf(dish.id),
@@ -275,80 +292,67 @@ export default function Home() {
       ...(field === 'delivery' ? { delivery_zone_id: '' } : {}),
     }));
 
-  const submitOrder = async (event: FormEvent) => {
+  const submitOrder = async (event: { preventDefault: () => void }) => {
     event.preventDefault();
-    if (submitting) return;
-    if (customer.delivery === 'delivery' && (!selectedZone || deliveryZones.loading || deliveryZones.error)) {
-      alert('Selecione uma localização de entrega disponível.');
+    if (submitLock.current) return;
+    if (!pending.current && (items.length === 0 || storeStatus?.isOpen !== true)) {
+      setCheckoutError('Aguarde a confirmação de abertura da loja e confira sua sacola.');
       return;
     }
+    if (!pending.current && customer.delivery === 'delivery' && (!selectedZone || deliveryZones.loading || deliveryZones.error)) {
+      setCheckoutError('Selecione uma localização de entrega disponível.');
+      return;
+    }
+    if (!pending.current) {
+      pending.current = { key: crypto.randomUUID(), body: JSON.stringify({
+        customer,
+        items: items.map(item => ({
+          id: item.dish.id, quantity: item.qty,
+          type: beverages.some(drink => keyOf(drink.id) === keyOf(item.dish.id)) ? 'beverage' : 'dish',
+          addons: item.selectedAddons, notes: item.notes,
+        })),
+      }) };
+      try { sessionStorage.setItem('tata-checkout-pending', JSON.stringify(pending.current)); } catch { /* A tentativa permanece disponível nesta aba. */ }
+    }
+    submitLock.current = true;
     setSubmitting(true);
+    setCheckoutError('');
     try {
       const response = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customer,
-          items: items.map((item) => ({
-            id: item.dish.id,
-            quantity: item.qty,
-            type: beverages.some((drink) => keyOf(drink.id) === keyOf(item.dish.id))
-              ? 'beverage'
-              : 'dish',
-            selectedAddons: item.selectedAddons,
-            addons: item.selectedAddons,
-            notes: item.notes,
-          })),
-        }),
+        method: 'POST', cache: 'no-store', signal: AbortSignal.timeout(20000),
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': pending.current.key },
+        body: pending.current.body,
       });
       const saved = await response.json();
-      if (!response.ok && /^DELIVERY_ZONE_/.test(saved.code || '')) {
-        setField('delivery_zone_id', '');
-        deliveryZones.refresh();
+      if (!response.ok) {
+        // Erros determinísticos de validação permitem corrigir a sacola. Uma
+        // falha de rede/servidor mantém a MESMA tentativa até ser reconciliada.
+        if (response.status >= 400 && response.status < 500 && saved.code !== 'IDEMPOTENCY_CONFLICT') {
+          pending.current = null;
+          setRetryPending(false);
+          try { sessionStorage.removeItem('tata-checkout-pending'); } catch { /* A tentativa permanece disponível nesta aba. */ }
+        }
+        if (/^DELIVERY_ZONE_/.test(saved.code || '')) {
+          setField('delivery_zone_id', '');
+          deliveryZones.refresh();
+        }
+        throw new Error(saved.error || 'Não foi possível registrar o pedido.');
       }
-      if (!response.ok) throw new Error(saved.error || 'Não foi possível registrar o pedido.');
-      const lines = saved.items.map((item: { quantity: number; name: string; price: number; notes?: string; addons?: Array<{ qty: number; name: string }> }) => {
-        const addons =
-          item.addons && item.addons.length > 0
-            ? `\n  + ${item.addons
-                .map((addon) => `${addon.qty}x ${addon.name}`)
-                .join(', ')}`
-            : '';
-        const notes = item.notes ? `\n  Obs.: ${item.notes}` : '';
-        return `• ${item.quantity}x ${item.name} — ${money(
-          Number(item.price) * item.quantity
-        )}${addons}${notes}`;
-      });
-      const payment =
-        customer.payment === 'pix'
-          ? 'PIX'
-          : customer.payment === 'cash'
-          ? `Dinheiro${customer.change ? ` (troco para R$ ${customer.change})` : ''}`
-          : 'Cartão na entrega';
-      const address =
-        customer.delivery === 'delivery'
-          ? `📍 *Endereço:* ${customer.street}, ${customer.number}\n*Bairro:* ${
-              customer.neighborhood
-            }${customer.complement ? `\n*Complemento:* ${customer.complement}` : ''}${
-              customer.reference ? `\n*Referência:* ${customer.reference}` : ''
-            }`
-          : '🏠 *Retirada na Comedoria*';
-      const snapshot = saved.fulfillment as OrderFulfillment | null;
-      const deliverySummary = snapshot?.type === 'delivery'
-        ? `\n\n*Subtotal:* ${money(saved.subtotalCents / 100)}\n*Entrega:* ${snapshot.delivery_zone_name} — ${money(snapshot.delivery_fee)}`
-        : '';
-      const message = `🟠 *NOVO PEDIDO #${saved.code}*\n\n👤 *Cliente:* ${
-        customer.name
-      }\n📱 *Telefone:* ${customer.phone}\n\n${address}\n\n🍽️ *ITENS*\n${lines.join(
-        '\n'
-      )}${deliverySummary}\n\n💰 *Total: ${money(saved.totalCents / 100)}*\n💳 *Pagamento:* ${payment}${
-        customer.notes ? `\n\n📝 *Observações:* ${customer.notes}` : ''
-      }\n\nPedido enviado pelo cardápio da Comedoria da Tata.`;
+      setReceipt(saved);
+      setReceiptVisible(true);
+      try {
+        sessionStorage.setItem('tata-checkout-receipt', JSON.stringify(saved));
+        sessionStorage.removeItem('tata-checkout-pending');
+      } catch { /* A tentativa permanece disponível nesta aba. */ }
+      pending.current = null;
+      setRetryPending(false);
       clear();
-      window.location.href = `https://wa.me/5581992743126?text=${encodeURIComponent(message)}`;
+      setCheckoutOpen(false);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Erro ao registrar o pedido.');
+      setRetryPending(!!pending.current);
+      setCheckoutError(`${error instanceof Error ? error.message : 'Erro ao registrar o pedido.'}${pending.current ? ' Tente consultar novamente: a mesma tentativa será reutilizada, sem duplicar o pedido.' : ''}`);
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   };
@@ -624,16 +628,16 @@ export default function Home() {
         <span>Delivery · Chã Grande - Pernambuco · (81) 99274-3126</span>
       </footer>
 
-      <a
+      {contactWhatsAppUrl && <a
         className="whatsapp-float"
-        href="https://wa.me/5581992743126"
+        href={contactWhatsAppUrl}
         target="_blank"
         rel="noreferrer"
         aria-label="Falar com a Comedoria no WhatsApp"
       >
         <b>WhatsApp</b>
         <span>Atendimento</span>
-      </a>
+      </a>}
       {count > 0 && !cartOpen && !checkoutOpen && (
         <button className="mobile-bag" onClick={() => setCartOpen(true)}>
           <span>
@@ -714,7 +718,20 @@ export default function Home() {
         </div>
       )}
 
-      {checkoutOpen && (
+      {receipt && !receiptVisible && (
+        <button type="button" className="order-receipt-reopen" onClick={() => setReceiptVisible(true)}>
+          Ver pedido registrado #{receipt.code}
+        </button>
+      )}
+      {receipt && receiptVisible && (
+        <div className="overlay checkout-overlay">
+          <aside role="dialog" aria-modal="true" aria-label="Confirmação do pedido">
+            <OrderConfirmation order={receipt} />
+            <button type="button" className="back" onClick={() => setReceiptVisible(false)}>Voltar ao cardápio</button>
+          </aside>
+        </div>
+      )}
+      {checkoutOpen && !(receipt && receiptVisible) && (
         <div className="overlay checkout-overlay">
           <aside role="dialog" aria-modal="true" aria-label="Finalizar pedido">
             <button
@@ -736,7 +753,15 @@ export default function Home() {
             </button>
             <p className="eyebrow">FINALIZAR PEDIDO</p>
             <h2>Seus dados</h2>
+            {checkoutError && <p role="alert">{checkoutError}</p>}
+            {retryPending && <div role="status">
+              <p>Há uma tentativa aguardando confirmação. Consulte seu resultado antes de fazer outro pedido.</p>
+              <button type="button" className="continue" disabled={submitting} onClick={submitOrder}>
+                {submitting ? 'Consultando...' : 'Consultar / tentar novamente'}
+              </button>
+            </div>}
             <form className="checkout-form" onSubmit={submitOrder}>
+              <fieldset disabled={submitting || retryPending}>
               <label>
                 Nome completo
                 <input
@@ -924,9 +949,10 @@ export default function Home() {
                   ? 'Registrando pedido...'
                   : storeStatus?.isOpen === false
                   ? 'Pedidos encerrados'
-                  : 'Enviar pedido pelo WhatsApp'}
+                  : 'Registrar pedido'}
               </button>
               <small className="form-note">Você poderá revisar a mensagem antes de enviá-la.</small>
+              </fieldset>
             </form>
           </aside>
         </div>
