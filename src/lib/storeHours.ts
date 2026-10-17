@@ -72,12 +72,14 @@ function localParts(now: Date, timezone: string) {
 export function calculateStoreStatus(settings: StorefrontSettings = {}, now = new Date()): StoreStatus {
   const override = settings.orderOverride;
   if (override?.mode === 'closed') {
-    return { isOpen: false, label: 'Pedidos fechados manualmente', nextOpeningLabel: null, temporarilyClosed: true, timezone: STORE_TIMEZONE, mode: 'closed', expiresAt: null };
+    return { isOpen: false, label: 'FECHADO MANUALMENTE', nextOpeningLabel: null, temporarilyClosed: true, timezone: STORE_TIMEZONE, mode: 'closed', expiresAt: null };
   }
-  if (override?.mode === 'open' && override.expiresAt && Date.parse(override.expiresAt) > now.getTime()) {
-    return { isOpen: true, label: 'Aberto agora', nextOpeningLabel: null, temporarilyClosed: false, timezone: STORE_TIMEZONE, mode: 'open', expiresAt: override.expiresAt };
+  // Null (ou campo ausente em registros antigos) significa abertura persistente.
+  // Expirações finitas antigas continuam válidas até o prazo já salvo.
+  if (override?.mode === 'open' && (override.expiresAt == null || Date.parse(override.expiresAt) > now.getTime())) {
+    return { isOpen: true, label: 'ABERTO MANUALMENTE', nextOpeningLabel: null, temporarilyClosed: false, timezone: STORE_TIMEZONE, mode: 'open', expiresAt: override.expiresAt ?? null };
   }
-  // An expired opening is automatically ineffective, even without a browser or scheduled job.
+  // Apenas uma abertura antiga com prazo vencido/inválido retorna à grade.
   if (override) settings = { ...settings, temporarilyClosed: false };
   const timezone = settings.timezone || STORE_TIMEZONE;
   const schedule = normalizeOpeningHours(settings.openingHours);

@@ -6,7 +6,6 @@ import { STORE_TIMEZONE } from '@/lib/storeHours';
 
 export default function OrderOperations() {
   const status = useStoreStatus();
-  const [until, setUntil] = useState('15:00');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   async function update(mode: 'automatic' | 'open' | 'closed') {
@@ -15,7 +14,7 @@ export default function OrderOperations() {
     try {
       await adminFetch('/api/admin/order-operations', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, until }),
+        body: JSON.stringify({ mode }),
       });
       window.dispatchEvent(new Event('order-operations-updated'));
       setMessage('Funcionamento atualizado.');
@@ -23,22 +22,22 @@ export default function OrderOperations() {
       setMessage(error.message || 'Não foi possível atualizar o funcionamento.');
     } finally { setSaving(false); }
   }
-  const expiry = status?.expiresAt ? new Intl.DateTimeFormat('pt-BR', { timeZone: STORE_TIMEZONE, hour: '2-digit', minute: '2-digit' }).format(new Date(status.expiresAt)) : '';
-  const label = !status ? 'Consultando funcionamento...' : status.mode === 'closed' || status.temporarilyClosed
-    ? '🔴 Pedidos fechados manualmente' : status.mode === 'open'
-    ? `🟢 Aberto manualmente até ${expiry}` : status.isOpen
-    ? '🟢 Aberto pelo horário normal' : '🔴 Fechado pelo horário normal';
+  const expiry = status?.expiresAt ? new Intl.DateTimeFormat('pt-BR', { timeZone: STORE_TIMEZONE, dateStyle: 'short', timeStyle: 'short' }).format(new Date(status.expiresAt)) : '';
+  const label = !status ? 'Consultando funcionamento...' : status.mode === 'closed'
+    ? 'FECHADO MANUALMENTE' : status.mode === 'open' ? 'ABERTO MANUALMENTE' : 'HORÁRIO PADRÃO';
   return <section className="mb-4 rounded-2xl bg-white p-4 shadow" aria-labelledby="order-operations-title">
     <h2 id="order-operations-title" className="text-lg font-semibold">Funcionamento dos pedidos</h2>
     <p className="mt-3 font-medium" role="status">{label}</p>
-    <p className="mt-1 text-sm text-gray-600">Automático: sexta, sábado e domingo, das 11h às 15h (horário de Recife).</p>
+    {status && <p className="mt-1 text-sm text-gray-600">{status.mode === 'open'
+      ? expiry ? `Abertura temporária anterior: até ${expiry}. Abra novamente para remover esse prazo.`
+        : 'Abertura manual sem expiração. Continuará ativa até nova ação.'
+      : status.mode === 'closed' ? 'Fechamento manual ativo até nova ação.'
+        : `Horários cadastrados em Configurações (${status.timezone}). ${status.label}`}</p>}
+    <p className="mt-2 text-sm text-gray-600">A loja permanecerá aberta até você fechar manualmente ou retornar ao horário padrão.</p>
     <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-      <label className="flex flex-col gap-1 text-sm">Pedidos abertos até
-        <input type="time" value={until} onChange={event => setUntil(event.target.value)} className="min-h-12 rounded border p-3" disabled={saving} />
-      </label>
-      <button type="button" disabled={saving || !status} onClick={() => update('open')} className="min-h-12 rounded bg-brand-dark px-4 py-3 text-white disabled:opacity-60">Abrir pedidos hoje</button>
+      <button type="button" disabled={saving || !status} onClick={() => update('open')} className="min-h-12 rounded bg-brand-dark px-4 py-3 text-white disabled:opacity-60">Abrir pedidos agora</button>
       <button type="button" disabled={saving || !status} onClick={() => update('closed')} className="min-h-12 rounded border border-red-300 px-4 py-3 text-red-700 disabled:opacity-60">Fechar agora</button>
-      <button type="button" disabled={saving || !status} onClick={() => update('automatic')} className="min-h-12 rounded border px-4 py-3 disabled:opacity-60">Voltar ao automático</button>
+      <button type="button" disabled={saving || !status} onClick={() => update('automatic')} className="min-h-12 rounded border px-4 py-3 disabled:opacity-60">Horário padrão</button>
     </div>
     {message && <p className="mt-3 text-sm" role="status">{message}</p>}
   </section>;

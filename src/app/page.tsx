@@ -370,11 +370,13 @@ export default function Home() {
           </a>
           <div className={`header-status glass${storeStatus?.isOpen === false ? ' closed' : ''}`}>
             <span className="status-dot" />{' '}
-            <b>{storeStatus?.isOpen ? 'Aberto agora' : 'Fechado'}</b>
+            <b>{storeStatus?.mode === 'open' ? 'ABERTO MANUALMENTE' : storeStatus?.mode === 'closed'
+              ? 'FECHADO MANUALMENTE' : storeStatus?.isOpen ? 'Aberto agora' : 'Fechado'}</b>
             <span>
-              {storeStatus?.isOpen
-                ? 'Até 15:00'
-                : storeStatus?.nextOpeningLabel || storeStatus?.label || 'Sexta a domingo, 11h–15h'}
+              {storeStatus?.mode === 'open' ? storeStatus.expiresAt ? 'Abertura temporária' : 'Até nova ação manual'
+                : storeStatus?.mode === 'closed' ? 'Até nova ação manual'
+                : storeStatus?.isOpen ? 'HORÁRIO PADRÃO'
+                : storeStatus?.nextOpeningLabel || storeStatus?.label || 'Consultando funcionamento...'}
             </span>
           </div>
           <label className="header-search glass">

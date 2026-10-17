@@ -51,7 +51,7 @@ export default async function DishPage({ params }: { params: Promise<{ slug: str
 
   return (
     <main className="flex min-h-screen flex-col bg-brand-beige">
-      <Header open avgTime="30-45 min" />
+      <Header avgTime="30-45 min" />
       <div className="container mx-auto flex-1 px-3 py-4 sm:px-4 sm:py-8">
         <DishDetailClient dish={dish} />
       </div>

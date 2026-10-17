@@ -2,9 +2,11 @@
 import React from 'react';
 import SearchBar from '../SearchBar';
 import { useCart } from '../../components/CartContext';
+import { useStoreStatus } from '@/lib/useStoreStatus';
 
-export default function Header({ open, avgTime }: { open: boolean; avgTime: string }) {
+export default function Header({ avgTime }: { avgTime: string }) {
   const { itemCount, open: openCart } = useCart();
+  const status = useStoreStatus();
 
   return (
     <header className="bg-gradient-to-r from-brand-dark via-brand-brown to-brand-orange text-white shadow-2xl">
@@ -19,8 +21,9 @@ export default function Header({ open, avgTime }: { open: boolean; avgTime: stri
           </div>
 
           <div className="rounded-full bg-white/10 px-4 py-2 inline-flex items-center gap-2 text-sm text-white shadow-inner border border-white/10">
-            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${open ? 'bg-emerald-200/20 text-emerald-100' : 'bg-rose-200/20 text-rose-100'}`}>
-              {open ? 'Aberto agora' : 'Fechado'}
+            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${status?.isOpen ? 'bg-emerald-200/20 text-emerald-100' : 'bg-rose-200/20 text-rose-100'}`}>
+              {!status ? 'Consultando funcionamento...' : status.mode === 'open' ? 'ABERTO MANUALMENTE'
+                : status.mode === 'closed' ? 'FECHADO MANUALMENTE' : status.isOpen ? 'Aberto agora' : 'Fechado'}
             </span>
             <span>{avgTime}</span>
           </div>
