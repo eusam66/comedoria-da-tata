@@ -34,7 +34,7 @@ async function main(){
   await c.route('**/*',route=>{
    const request=route.request(),url=new URL(request.url());
    if(url.origin!==BASE)return route.abort();
-   if(url.pathname==='/api/orders'&&request.method()==='POST'&&request.postData()!=='{}'){
+   if(url.pathname==='/api/orders/v2'&&request.method()==='POST'&&request.postData()!=='{}'){
     result.validOrderPosts++;return route.abort();
    }
    return route.continue();

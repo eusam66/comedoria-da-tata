@@ -10,7 +10,7 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     return NextResponse.json(updated);
   } catch (err:any) {
     console.error('admin PATCH dishes', err);
-    const status = err.message === 'Forbidden' ? 403 : err.message === 'Unauthorized' ? 401 : 500;
+    const status = err.message === 'Forbidden' ? 403 : err.message === 'Unauthorized' ? 401 : /preço|promocional|promoção/i.test(err.message) || err.code === '23514' ? 400 : 500;
     return NextResponse.json({ error: err.message }, { status });
   }
 }
@@ -23,7 +23,7 @@ export async function DELETE(req: Request, context: { params: Promise<{ id: stri
     return NextResponse.json({ ok: res });
   } catch (err:any) {
     console.error('admin DELETE dishes', err);
-    const status = err.message === 'Forbidden' ? 403 : err.message === 'Unauthorized' ? 401 : 500;
+    const status = err.message === 'Forbidden' ? 403 : err.message === 'Unauthorized' ? 401 : /preço|promocional|promoção/i.test(err.message) || err.code === '23514' ? 400 : 500;
     return NextResponse.json({ error: err.message }, { status });
   }
 }

@@ -90,3 +90,9 @@ img {
 .header-logo {
   font-family: 'Playfair Display', serif;
 }
+
+/* Preço reutilizado no catálogo, detalhe e prévia administrativa. */
+.dish-price { display: inline-flex; flex-direction: column; gap: .15rem; line-height: 1.35; }
+.dish-price del { font-size: .8rem; opacity: .85; }
+.dish-price strong { font-weight: 800; }
+.offer-label { font-size: .72rem; font-weight: 800; }

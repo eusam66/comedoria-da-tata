@@ -10,7 +10,7 @@ const { chromium } = require('playwright');
 const REF = 'nkywpsftihxcuvdxeexn';
 const TARGET = `https://${REF}.supabase.co`;
 const EMAIL = 'admin-homologacao@example.invalid';
-const BASE = 'http://127.0.0.1:3002';
+const BASE = 'http://localhost:3002';
 const result = { project: REF, status: 'pending', checks: [] };
 const check = name => { result.checks.push(name); console.log(`PASS: ${name}`); };
 function save() { fs.mkdirSync('artifacts', { recursive: true }); fs.writeFileSync('artifacts/homologacao-real-results.json', JSON.stringify(result, null, 2)); }
@@ -97,7 +97,7 @@ async function main() {
     assert.equal((await app('/api/store-status')).json.isOpen, false);
     const customer = { name: 'HOMOLOGAÇÃO Integração real', phone: '00000000000', delivery: 'delivery', delivery_zone_id: zone.id,
       street: 'Rua Fictícia', number: '1', neighborhood: 'Teste', complement: '', reference: '', payment: 'pix', change: '', notes: 'HOMOLOGAÇÃO sem envio externo' };
-    const payload = { customer, items: [{ id: dish.id, quantity: 1, type: 'dish', addons: [], notes: 'Sem cebola' }] };
+    const payload = { customer, expected_total_cents: Math.round((Number(dish.price) + Number(zone.fee)) * 100), items: [{ id: dish.id, quantity: 1, expected_unit_cents: Math.round(Number(dish.price) * 100), type: 'dish', addons: [], notes: 'Sem cebola' }] };
     const blocked = await app('/api/orders', 'POST', payload, { 'Idempotency-Key': randomUUID() }); assert.equal(blocked.status, 409);
     check('horário fechado bloqueia registro pela API real');
     await remote('/rest/v1/restaurant_settings?key=eq.order_operations', { method: 'PATCH', body: JSON.stringify({ value: { mode: 'open', expiresAt: new Date(Date.now() + 15 * 60000).toISOString() } }) });
@@ -119,7 +119,7 @@ async function main() {
     stock = await remote(`/rest/v1/dishes?id=eq.${dish.id}&select=stock`); assert.equal(stock[0].stock, dish.stock);
     const history = await remote(`/rest/v1/order_history?order_id=eq.${key}&select=id`); assert.ok(history.length >= 1);
     check('cancelamento real e repetido repõe estoque uma vez; histórico persistido');
-    const pickup = await app('/api/orders', 'POST', { ...payload, customer: { ...customer, delivery: 'pickup', delivery_zone_id: '' } }, { 'Idempotency-Key': randomUUID() });
+    const pickup = await app('/api/orders', 'POST', { ...payload, expected_total_cents: Math.round(Number(dish.price) * 100), customer: { ...customer, delivery: 'pickup', delivery_zone_id: '' } }, { 'Idempotency-Key': randomUUID() });
     if (pickup.status === 200) orderCodes.add(pickup.json.code);
     assert.equal(pickup.status, 200); assert.equal(pickup.json.fulfillment.delivery_fee, 0);
     assert.equal(pickup.json.totalCents, Math.round(Number(dish.price) * 100));
@@ -139,9 +139,9 @@ async function main() {
         }
         return route.continue();
       });
-      page.on('request', request => { if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/orders') posts++; });
+      page.on('request', request => { if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/orders/v2') posts++; });
       page.on('response', async response => {
-        if (response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/orders' && response.ok()) {
+        if (response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/orders/v2' && response.ok()) {
           saved = await response.json(); orderCodes.add(saved.code);
         }
       });
@@ -152,7 +152,7 @@ async function main() {
       await page.getByRole('textbox', { name: 'Nome completo' }).fill(customer.name);
       await page.getByRole('textbox', { name: 'Telefone', exact: true }).fill(customer.phone);
       await page.getByRole('radio', { name: 'Retirada', exact: true }).check();
-      const responsePromise = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/orders');
+      const responsePromise = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/orders/v2');
       await page.getByRole('button', { name: 'Registrar pedido', exact: true }).click();
       const orderResponse = await responsePromise;
       assert.ok(orderResponse.ok(), 'Checkout real não registrou o pedido');

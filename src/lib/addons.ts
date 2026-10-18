@@ -60,7 +60,7 @@ export function serializeDishAddons(addons: DishAddon[]): { addons: DishAddon[] 
 }
 
 export function selectedAddonsTotal(selectedAddons: SelectedAddon[]): number {
-  return selectedAddons.reduce((sum, addon) => sum + addon.price * addon.qty, 0);
+  return selectedAddons.reduce((sum, addon) => sum + Math.round(addon.price * 100) * addon.qty, 0) / 100;
 }
 
 export function selectedAddonsKey(selectedAddons: SelectedAddon[]): string {

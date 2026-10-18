@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import DishPrice from './DishPrice';
 import Image from 'next/image';
 import { DishRow } from '../lib/types';
 import Link from 'next/link';
@@ -41,13 +42,14 @@ export default function DishCard({ dish }: { dish: DishRow }) {
               <div className="text-brand-brown text-sm uppercase tracking-[0.18em]">Serve</div>
               <div className="font-semibold text-brand-dark">{dish.servings ?? 1} pessoa(s)</div>
             </div>
-            <div className="rounded-3xl bg-brand-dark px-4 py-2 text-white font-semibold">R$ {Number(dish.price).toFixed(2)}</div>
+            <div className="rounded-3xl bg-brand-dark px-4 py-2 text-white font-semibold"><DishPrice dish={dish} /></div>
           </div>
         </Link>
         <div className="mt-4 flex justify-end">
           <button
             type="button"
             aria-label={`Adicionar ${dish.name}`}
+            disabled={dish.is_available === false || Number(dish.stock ?? 1) < 1}
             onClick={() => addItem(dish, 1)}
             className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-orange text-2xl font-semibold text-white shadow-lg shadow-brand-orange/20 transition hover:bg-brand-dark"
           >

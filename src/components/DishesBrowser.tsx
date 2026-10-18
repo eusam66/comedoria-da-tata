@@ -33,7 +33,7 @@ export default function DishesBrowser({ categories }: { categories: CategoryRow[
       const params = new URLSearchParams();
       if (q) params.set('q', q);
       if (cat) params.set('category', cat);
-      const res = await fetch('/api/dishes?' + params.toString(), { cache: 'force-cache' });
+      const res = await fetch('/api/dishes?' + params.toString(), { cache: 'no-store' });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || 'Erro ao buscar pratos');
       const freshDishes = json || [];

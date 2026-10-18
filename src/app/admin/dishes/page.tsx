@@ -1,5 +1,10 @@
-﻿'use client';
-import React, { useEffect, useState } from 'react';
+'use client';
+import { validMoney } from '../../../lib/pricing';
+import { useAdminListContext } from '../../../lib/useAdminListContext';
+import { useAdminEditor } from '../../../lib/useAdminEditor';
+import { pricingError, discountPercent, hasPromotion, money, cents } from '../../../lib/pricing';
+import DishPrice from '../../../components/DishPrice';
+import React, { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
 import { slugify } from '../../../lib/slug';
 import { compressImage } from '../../../lib/imageCompress';
@@ -9,6 +14,8 @@ import { DishAddon, normalizeDishAddons, serializeDishAddons } from '../../../li
 import { adminFetch } from '../../../lib/adminFetch';
 import AdminField from '../../../components/AdminField';
 
+type AddonDraft = Omit<DishAddon, 'price' | 'maxQty'> & { price: number | ''; maxQty: number | '' };
+
 export default function AdminDishesPage() {
   const [items, setItems] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -17,6 +24,8 @@ export default function AdminDishesPage() {
     code: '',
     name: '',
     price: 0,
+    promo_price: null,
+    promo_active: false,
     categoryId: '',
     slug: '',
     description: '',
@@ -26,13 +35,69 @@ export default function AdminDishesPage() {
     stock: 1,
     popular: false,
     isNew: false,
-    addons: [] as DishAddon[],
+    addons: [] as AddonDraft[],
   });
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const [removeCurrentImage, setRemoveCurrentImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const originalStock = useRef(0);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  const editor = useAdminEditor(editingId, JSON.stringify([form, file?.name, removeCurrentImage]));
+  const [query, setQuery] = useAdminListContext('admin-dishes-query', '');
+  const [filter, setFilter] = useAdminListContext('admin-dishes-filter', 'all');
+  const pricing = {
+    price: Number(form.price),
+    promo_price: form.promo_price,
+    promo_active: form.promo_active,
+  };
+  const promoError = pricingError(pricing);
+  function validateDraft() {
+    const validation = pricingError(pricing);
+    if (validation) throw new Error(validation);
+    for (const [key, label, min] of [
+      ['stock', 'estoque', 0],
+      ['servings', 'quantidade de pessoas', 1],
+    ] as const) {
+      if (form[key] === '' || !Number.isInteger(Number(form[key])) || Number(form[key]) < min)
+        throw new Error(`Informe ${label} válido antes de salvar.`);
+    }
+    for (const addon of form.addons as AddonDraft[]) {
+      if (!addon.name.trim()) continue;
+      if (addon.price === '' || (addon.price !== 0 && !validMoney(addon.price)))
+        throw new Error('Informe o preço do adicional; use 0 para um adicional gratuito.');
+      if (addon.maxQty === '' || !Number.isInteger(addon.maxQty) || addon.maxQty < 1)
+        throw new Error('Informe a quantidade máxima do adicional.');
+    }
+  }
+  const visibleItems = items.filter(
+    (d) =>
+      d.name.toLocaleLowerCase('pt-BR').includes(query.toLocaleLowerCase('pt-BR')) &&
+      (filter === 'all' ||
+        (filter === 'promo' && hasPromotion(d)) ||
+        (filter === 'available' && d.stock > 0 && d.is_available !== false) ||
+        (filter === 'empty' && (d.stock < 1 || d.is_available === false)))
+  );
+  async function togglePromotion(dish: any) {
+    if (!dish.promo_active && pricingError({ ...dish, promo_active: true })) {
+      startEdit(dish);
+      return;
+    }
+    await editor.run(async () => {
+      try {
+        const updated = await adminFetch<any>(`/api/admin/dishes/${dish.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ promo_active: !dish.promo_active }),
+        });
+        setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+        toastSuccess(updated.promo_active ? 'Promoção ativada' : 'Promoção desativada');
+      } catch {
+        toastError('Não foi possível salvar a promoção');
+      }
+    });
+  }
 
   useEffect(() => {
     Promise.all([
@@ -70,6 +135,8 @@ export default function AdminDishesPage() {
       code: '',
       name: '',
       price: 0,
+      promo_price: null,
+      promo_active: false,
       categoryId: '',
       slug: '',
       description: '',
@@ -79,9 +146,10 @@ export default function AdminDishesPage() {
       stock: 1,
       popular: false,
       isNew: false,
-      addons: [] as DishAddon[],
+      addons: [] as AddonDraft[],
     });
     setFile(null);
+    setFileInputKey((key) => key + 1);
     setCurrentImageUrl(null);
     setRemoveCurrentImage(false);
     setEditingId(null);
@@ -89,12 +157,17 @@ export default function AdminDishesPage() {
   }
 
   function startEdit(dish: any) {
+    if (!editor.begin(dish.id)) return;
+    setError(null);
     const addons = normalizeDishAddons(dish?.extras ?? dish?.addons ?? null);
+    originalStock.current = Number(dish.stock ?? 0);
     setEditingId(dish.id);
     setForm({
       code: dish.code || '',
       name: dish.name || '',
       price: Number(dish.price) || 0,
+      promo_price: dish.promo_price ?? null,
+      promo_active: dish.promo_active === true,
       categoryId: dish.category_id || '',
       slug: dish.slug || '',
       description: dish.description || '',
@@ -107,9 +180,9 @@ export default function AdminDishesPage() {
       addons,
     });
     setFile(null);
+    setFileInputKey((key) => key + 1);
     setCurrentImageUrl(dish.image_url || dish.image || null);
     setRemoveCurrentImage(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function addAddonRow() {
@@ -122,10 +195,10 @@ export default function AdminDishesPage() {
     }));
   }
 
-  function updateAddonRow(addonId: string, patch: Partial<DishAddon>) {
+  function updateAddonRow(addonId: string, patch: Partial<AddonDraft>) {
     setForm((current: any) => ({
       ...current,
-      addons: (current.addons || []).map((addon: DishAddon) =>
+      addons: (current.addons || []).map((addon: AddonDraft) =>
         addon.id === addonId ? { ...addon, ...patch } : addon
       ),
     }));
@@ -134,17 +207,20 @@ export default function AdminDishesPage() {
   function removeAddonRow(addonId: string) {
     setForm((current: any) => ({
       ...current,
-      addons: (current.addons || []).filter((addon: DishAddon) => addon.id !== addonId),
+      addons: (current.addons || []).filter((addon: AddonDraft) => addon.id !== addonId),
     }));
   }
 
   async function create() {
     setError(null);
     try {
+      validateDraft();
       const imageUrl = await uploadIfNeeded();
       const normalizedAddons = normalizeDishAddons(form.addons || []);
       const payload: any = {
         ...form,
+        price: Number(form.price),
+        position: Number(form.position),
         code: form.code || undefined,
         slug: form.slug || slugify(form.name),
         ingredients: form.ingredients.trim() || null,
@@ -161,6 +237,7 @@ export default function AdminDishesPage() {
       });
       setItems((s) => [json, ...s]);
       resetForm();
+      editor.finish(json.id);
       toastSuccess('Prato criado com sucesso');
     } catch (e: any) {
       setError(e.message || 'Erro ao criar prato');
@@ -172,10 +249,13 @@ export default function AdminDishesPage() {
     if (!editingId) return;
     setError(null);
     try {
+      validateDraft();
       const imageUrl = await uploadIfNeeded();
       const normalizedAddons = normalizeDishAddons(form.addons || []);
       const payload: any = {
         ...form,
+        price: Number(form.price),
+        position: Number(form.position),
         code: form.code || undefined,
         slug: form.slug || slugify(form.name),
         ingredients: form.ingredients.trim() || null,
@@ -184,6 +264,7 @@ export default function AdminDishesPage() {
         categoryId: form.categoryId || null,
         extras: normalizedAddons.length > 0 ? serializeDishAddons(normalizedAddons) : null,
       };
+      if (form.stock === originalStock.current) delete payload.stock;
       if (imageUrl) payload.image = imageUrl;
       if (!imageUrl && removeCurrentImage) payload.image = null;
       const json = await adminFetch<any>(`/api/admin/dishes/${editingId}`, {
@@ -193,7 +274,8 @@ export default function AdminDishesPage() {
       });
       setItems((s) => s.map((x) => (x.id === editingId ? json : x)));
       resetForm();
-      toastSuccess('Prato atualizado com sucesso');
+      editor.finish(json.id);
+      toastSuccess('Prato e preço promocional atualizados');
     } catch (e: any) {
       setError(e.message || 'Erro ao atualizar prato');
       toastError(e?.message || 'Erro ao atualizar prato');
@@ -204,6 +286,8 @@ export default function AdminDishesPage() {
     try {
       await adminFetch<{ ok: boolean }>(`/api/admin/dishes/${id}`, { method: 'DELETE' });
       setItems((s) => s.filter((x) => x.id !== id));
+      if (editingId === id) resetForm();
+      editor.removed(id);
       toastSuccess('Prato excluído');
     } catch (e: any) {
       setError(e.message || 'Erro ao excluir');
@@ -219,6 +303,7 @@ export default function AdminDishesPage() {
         body: JSON.stringify({ stock: Math.max(0, stock) }),
       });
       setItems((current) => current.map((item) => (item.id === dish.id ? json : item)));
+      toastSuccess('Estoque atualizado');
     } catch (e: any) {
       toastError(e.message || 'Erro ao atualizar estoque');
     }
@@ -256,10 +341,31 @@ export default function AdminDishesPage() {
   const submitLabel = editingId ? 'Salvar alterações' : 'Criar prato';
 
   return (
-    <>
-      <h1 className="text-2xl font-display mb-4">CRUD de Pratos</h1>
+    <fieldset disabled={editor.busy} className="min-w-0">
+      <h1 className="text-2xl font-display mb-4">Pratos</h1>
+      <div
+        className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4"
+        aria-label="Indicadores de pratos"
+      >
+        {[
+          ['Cadastrados', items.length],
+          ['Disponíveis', items.filter((d) => d.stock > 0 && d.is_available !== false).length],
+          ['Esgotados', items.filter((d) => d.stock < 1 || d.is_available === false).length],
+          ['Promoções ativas', items.filter(hasPromotion).length],
+        ].map(([label, value]) => (
+          <div className="rounded bg-white p-3" key={label}>
+            <b>{value}</b> {label}
+          </div>
+        ))}
+      </div>
       <div className="bg-white p-4 rounded shadow mb-6">
-        <h3 className="font-semibold mb-4">{editingId ? 'Editar prato' : 'Criar prato'}</h3>
+        <h2
+          ref={editor.headingRef}
+          tabIndex={-1}
+          className="admin-editor-heading font-semibold mb-4"
+        >
+          {editingId ? `EDITANDO: ${form.name}` : 'Criar prato'}
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-3">
             <AdminField label="Código do prato" help="Código interno do prato, ex.: CDT009.">
@@ -285,10 +391,15 @@ export default function AdminDishesPage() {
                   min="0"
                   step="0.01"
                   value={form.price}
-                  onChange={(e) => setForm({ ...form, price: parseFloat(e.target.value || '0') })}
+                  aria-invalid={form.price === ''}
+                  aria-describedby="dish-price-validation"
+                  onChange={(e) =>
+                    setForm({ ...form, price: e.target.value === '' ? '' : Number(e.target.value) })
+                  }
                   placeholder="Ex.: 39,99"
                   className="border p-3 rounded w-full"
                 />
+                {form.price === '' && <span id="dish-price-validation" role="alert" className="mt-1 block text-sm text-red-700">Informe o preço normal para salvar.</span>}
               </AdminField>
               <AdminField label="Posição no cardápio" help="0 aparece antes de 1, 1 antes de 2...">
                 <input
@@ -297,7 +408,10 @@ export default function AdminDishesPage() {
                   step="1"
                   value={form.position}
                   onChange={(e) =>
-                    setForm({ ...form, position: parseInt(e.target.value || '0', 10) })
+                    setForm({
+                      ...form,
+                      position: e.target.value === '' ? '' : Number(e.target.value),
+                    })
                   }
                   placeholder="Ex.: 0"
                   className="border p-3 rounded w-full"
@@ -313,7 +427,10 @@ export default function AdminDishesPage() {
                   step="1"
                   value={form.servings}
                   onChange={(e) =>
-                    setForm({ ...form, servings: parseInt(e.target.value || '1', 10) })
+                    setForm({
+                      ...form,
+                      servings: e.target.value === '' ? '' : Number(e.target.value),
+                    })
                   }
                   placeholder="Ex.: 2"
                   className="border p-3 rounded w-full"
@@ -329,7 +446,7 @@ export default function AdminDishesPage() {
                   step="1"
                   value={form.stock}
                   onChange={(e) =>
-                    setForm({ ...form, stock: Math.max(0, parseInt(e.target.value || '0', 10)) })
+                    setForm({ ...form, stock: e.target.value === '' ? '' : Number(e.target.value) })
                   }
                   className="border p-3 rounded w-full"
                 />
@@ -421,6 +538,7 @@ export default function AdminDishesPage() {
                 help="Foto principal exibida no cardápio. Prefira uma imagem nítida e bem iluminada."
               >
                 <input
+                  key={fileInputKey}
                   type="file"
                   accept="image/*"
                   onChange={(e) => {
@@ -451,6 +569,7 @@ export default function AdminDishesPage() {
                     onClick={() => {
                       setCurrentImageUrl(null);
                       setFile(null);
+                      setFileInputKey((key) => key + 1);
                       setRemoveCurrentImage(true);
                     }}
                     className="mt-3 rounded border border-red-200 px-3 py-2 text-sm text-red-600"
@@ -460,6 +579,62 @@ export default function AdminDishesPage() {
                 )}
               </div>
             )}
+            <section className="rounded-lg border p-3" aria-labelledby="dish-promo-heading">
+              <h3 id="dish-promo-heading" className="font-semibold">
+                PROMOÇÃO DO PRATO
+              </h3>
+              <p className="my-2 text-sm">
+                Ativa até ser desligada manualmente. Preço normal: {money(form.price)}
+              </p>
+              <label className="flex min-h-11 items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={form.promo_active}
+                  onChange={(e) => setForm({ ...form, promo_active: e.target.checked })}
+                />
+                Ativar promoção
+              </label>
+              <label className="block">
+                Preço promocional (R$)
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="0.01"
+                  value={form.promo_price ?? ''}
+                  aria-describedby="promo-validation"
+                  aria-invalid={!!promoError && (form.promo_active || form.promo_price != null)}
+                  className="mt-1 w-full rounded border p-3"
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      promo_price: e.target.value === '' ? null : Number(e.target.value),
+                    })
+                  }
+                />
+              </label>
+              <p
+                id="promo-validation"
+                className="my-2 text-sm"
+                role={
+                  promoError && (form.promo_active || form.promo_price != null)
+                    ? 'alert'
+                    : undefined
+                }
+              >
+                {promoError && (form.promo_active || form.promo_price != null)
+                  ? promoError
+                  : form.promo_price != null
+                  ? `Desconto: ${discountPercent(pricing)}% · Economia: ${money(
+                      (cents(form.price) - cents(form.promo_price)) / 100
+                    )}`
+                  : 'Configure o preço para ativar a oferta.'}
+              </p>
+              <div aria-label="Prévia do card" className="rounded bg-orange-50 p-3">
+                <b>{form.name || 'Nome do prato'}</b>
+                <DishPrice dish={pricing} />
+              </div>
+            </section>
             <div className="rounded-lg border p-3">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <span className="text-sm font-semibold">Adicionais do prato</span>
@@ -481,7 +656,7 @@ export default function AdminDishesPage() {
                     Nenhum adicional cadastrado para este prato.
                   </p>
                 )}
-                {(form.addons || []).map((addon: DishAddon) => (
+                {(form.addons || []).map((addon: AddonDraft) => (
                   <div key={addon.id} className="rounded border p-3">
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-12">
                       <AdminField
@@ -507,7 +682,9 @@ export default function AdminDishesPage() {
                           step="0.01"
                           value={addon.price}
                           onChange={(e) =>
-                            updateAddonRow(addon.id, { price: Number(e.target.value || 0) })
+                            updateAddonRow(addon.id, {
+                              price: e.target.value === '' ? '' : Number(e.target.value),
+                            })
                           }
                           placeholder="Ex.: 3,50"
                           className="border p-2 rounded w-full"
@@ -525,7 +702,7 @@ export default function AdminDishesPage() {
                           value={addon.maxQty}
                           onChange={(e) =>
                             updateAddonRow(addon.id, {
-                              maxQty: Math.max(1, parseInt(e.target.value || '1', 10)),
+                              maxQty: e.target.value === '' ? '' : Number(e.target.value),
                             })
                           }
                           placeholder="Ex.: 1"
@@ -563,18 +740,28 @@ export default function AdminDishesPage() {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={editingId ? update : create}
+                onClick={() => editor.run(editingId ? update : create)}
+                disabled={editor.busy || !!promoError}
                 className="flex-1 bg-brand-dark text-white py-3 rounded"
               >
-                {submitLabel}
+                {editor.busy ? 'Salvando...' : submitLabel}
               </button>
               {editingId && (
-                <button type="button" onClick={resetForm} className="flex-1 border py-3 rounded">
+                <button
+                  type="button"
+                  onClick={() => editor.cancel(resetForm)}
+                  disabled={editor.busy}
+                  className="flex-1 border py-3 rounded"
+                >
                   Cancelar
                 </button>
               )}
             </div>
-            {error && <div className="text-red-600 mt-2">{error}</div>}
+            {error && (
+              <div role="alert" className="text-red-600 mt-2">
+                {error}
+              </div>
+            )}
           </div>
           <div className="space-y-3">
             <div className="bg-brand-beige p-4 rounded">
@@ -600,14 +787,41 @@ export default function AdminDishesPage() {
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="mb-4 flex flex-wrap gap-2">
+        <label className="flex-1">
+          Pesquisar pratos
+          <input
+            className="block w-full rounded border p-3"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            type="search"
+          />
+        </label>
+        <label>
+          Exibir
+          <select
+            className="block rounded border p-3"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          >
+            <option value="all">Todos</option>
+            <option value="promo">Em promoção</option>
+            <option value="available">Disponíveis</option>
+            <option value="empty">Esgotados</option>
+          </select>
+        </label>
+      </div>
+      <div data-admin-list tabIndex={-1} aria-label="Lista de pratos" className="space-y-3">
+        {!loading && !visibleItems.length && items.length > 0 && (
+          <p role="status">Nenhum prato para estes filtros.</p>
+        )}
         {loading && <Skeleton lines={3} />}
         {!loading && items.length === 0 && !error && (
           <div className="rounded bg-white p-4 text-sm text-gray-600 shadow">
             Nenhum prato cadastrado.
           </div>
         )}
-        {items.map((d) => {
+        {visibleItems.map((d) => {
           const stock = Math.max(0, Number(d.stock || 0));
           const categoryName =
             categories.find((category) => category.id === d.category_id)?.name || 'Sem categoria';
@@ -617,6 +831,9 @@ export default function AdminDishesPage() {
           return (
             <article
               key={d.id}
+              data-admin-item={d.id}
+              tabIndex={-1}
+              data-updated={editor.highlighted === d.id}
               className="flex min-w-0 flex-col gap-3 rounded-2xl bg-white p-4 shadow sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="flex min-w-0 items-center gap-3 sm:flex-1">
@@ -650,9 +867,12 @@ export default function AdminDishesPage() {
                   </div>
                   <p className="mt-1 text-sm text-gray-600">
                     <span className="font-semibold whitespace-nowrap">
-                      R$ {Number(d.price || 0).toFixed(2)}
+                      <DishPrice dish={d} />
                     </span>{' '}
                     · {categoryName} · Serve {d.servings || d.serves || 1}
+                  </p>
+                  <p className="text-xs font-semibold">
+                    Promoção {d.promo_active ? 'ativa' : 'inativa'}
                   </p>
                   <p className="text-xs text-gray-500">
                     Estoque: {stock} · {addonCount} adicional{addonCount === 1 ? '' : 'is'}
@@ -676,8 +896,8 @@ export default function AdminDishesPage() {
                   <button
                     type="button"
                     aria-label={`Diminuir estoque de ${d.name}`}
-                    onClick={() => setStock(d, stock - 1)}
-                    disabled={stock < 1}
+                    onClick={() => editor.run(() => setStock(d, stock - 1))}
+                    disabled={editor.busy || stock < 1}
                     className="min-h-11 min-w-11 rounded border px-3 py-2 disabled:opacity-40"
                   >
                     −
@@ -686,20 +906,29 @@ export default function AdminDishesPage() {
                   <button
                     type="button"
                     aria-label={`Aumentar estoque de ${d.name}`}
-                    onClick={() => setStock(d, stock + 1)}
+                    onClick={() => editor.run(() => setStock(d, stock + 1))}
                     className="min-h-11 min-w-11 rounded border px-3 py-2"
                   >
                     +
                   </button>
                   <button
                     type="button"
-                    onClick={() => setStock(d, 0)}
+                    onClick={() => editor.run(() => setStock(d, 0))}
                     className="min-h-11 rounded border border-red-200 px-3 py-2 text-sm text-red-700"
                   >
                     Zerar estoque
                   </button>
                 </div>
                 <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+                  <button
+                    type="button"
+                    disabled={editor.busy}
+                    onClick={() => togglePromotion(d)}
+                    className="min-h-11 rounded border px-3 py-2 text-sm"
+                    aria-label={`${d.promo_active ? 'Desativar' : 'Ativar'} promoção de ${d.name}`}
+                  >
+                    {d.promo_active ? 'Desativar promoção' : 'Ativar promoção'}
+                  </button>
                   <a
                     href={`/dishes/${d.slug}`}
                     target="_blank"
@@ -711,7 +940,7 @@ export default function AdminDishesPage() {
                   <button
                     type="button"
                     className="min-h-11 rounded border px-3 py-2 text-sm"
-                    onClick={() => duplicate(d)}
+                    onClick={() => editor.run(() => duplicate(d))}
                   >
                     Duplicar
                   </button>
@@ -727,7 +956,7 @@ export default function AdminDishesPage() {
                     className="min-h-11 rounded bg-red-500 px-3 py-2 text-sm text-white"
                     onClick={async () => {
                       if (!confirm('Confirma exclusão deste prato?')) return;
-                      await remove(d.id);
+                      await editor.run(() => remove(d.id));
                     }}
                   >
                     Excluir
@@ -738,6 +967,6 @@ export default function AdminDishesPage() {
           );
         })}
       </div>
-    </>
+    </fieldset>
   );
 }

@@ -13,11 +13,15 @@ export async function GET() {
         desc: dish.description || 'Receita caseira preparada com carinho.',
         ingredients: dish.ingredients || '',
         price: Number(dish.price) || 0,
+        promo_price: dish.promo_price,
+        promo_active: dish.promo_active,
         image: dish.image || null,
+        is_new: dish.isNew,
+        popular: dish.popular,
         tag: dish.isNew ? 'Novidade' : dish.popular ? 'Mais pedido' : 'Da casa',
         stock: Number(dish.stock ?? (dish.isAvailable === false ? 0 : 1)),
-        available: Number(dish.stock ?? (dish.isAvailable === false ? 0 : 1)) >= 1
-      }))
+        available: dish.isAvailable !== false && Number(dish.stock ?? (dish.isAvailable === false ? 0 : 1)) >= 1
+      })), { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {
     console.error('public menu', error);

@@ -1,4 +1,5 @@
 'use client';
+import { useAdminEditor } from '../../../lib/useAdminEditor';
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { compressImage } from '../../../lib/imageCompress';
@@ -11,7 +12,7 @@ type CategoryForm = {
   name: string;
   slug: string;
   description: string;
-  position: number;
+  position: number | '';
   isActive: boolean;
 };
 
@@ -26,12 +27,15 @@ const initialForm: CategoryForm = {
 export default function AdminCategoriesPage() {
   const [items, setItems] = useState<any[]>([]);
   const [form, setForm] = useState<CategoryForm>(initialForm);
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const [removeCurrentImage, setRemoveCurrentImage] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const editor = useAdminEditor(editingId, JSON.stringify([form, file?.name, removeCurrentImage]));
 
   useEffect(() => {
     adminFetch<any[]>('/api/admin/categories')
@@ -57,6 +61,7 @@ export default function AdminCategoriesPage() {
   function resetForm() {
     setForm(initialForm);
     setFile(null);
+    setFileInputKey((key) => key + 1);
     setEditingId(null);
     setError(null);
     setCurrentImageUrl(null);
@@ -69,6 +74,7 @@ export default function AdminCategoriesPage() {
       const imageUrl = await uploadIfNeeded();
       const payload: any = {
         ...form,
+        position: Number(form.position),
         slug: form.slug || slugify(form.name),
       };
       if (imageUrl) payload.image = imageUrl;
@@ -91,6 +97,7 @@ export default function AdminCategoriesPage() {
         toastSuccess('Categoria criada');
       }
       resetForm();
+      editor.finish(json.id);
     } catch (e: any) {
       setError(e.message || 'Erro ao salvar categoria');
       toastError(e?.message || 'Erro ao salvar categoria');
@@ -98,6 +105,8 @@ export default function AdminCategoriesPage() {
   }
 
   function startEdit(category: any) {
+    if (!editor.begin(category.id)) return;
+    setError(null);
     setEditingId(category.id);
     setForm({
       name: category.name || '',
@@ -107,6 +116,7 @@ export default function AdminCategoriesPage() {
       isActive: category.is_active ?? true,
     });
     setFile(null);
+    setFileInputKey((key) => key + 1);
     setCurrentImageUrl(category.image_url || null);
     setRemoveCurrentImage(false);
   }
@@ -116,6 +126,8 @@ export default function AdminCategoriesPage() {
     try {
       await adminFetch<{ ok: boolean }>(`/api/admin/categories/${id}`, { method: 'DELETE' });
       setItems((current) => current.filter((item) => item.id !== id));
+      if (editingId === id) resetForm();
+      editor.removed(id);
       toastSuccess('Categoria excluída');
     } catch (e: any) {
       setError(e.message || 'Erro ao excluir categoria');
@@ -124,12 +136,16 @@ export default function AdminCategoriesPage() {
   }
 
   return (
-    <>
+    <fieldset disabled={editor.busy} className="min-w-0">
       <h1 className="mb-4 text-2xl font-display">Categorias da loja</h1>
 
       <div className="mb-6 rounded-2xl bg-white p-4 shadow">
-        <h2 className="mb-4 text-lg font-semibold">
-          {editingId ? 'Editar categoria' : 'Nova categoria'}
+        <h2
+          ref={editor.headingRef}
+          tabIndex={-1}
+          className="admin-editor-heading mb-4 text-lg font-semibold"
+        >
+          {editingId ? `EDITANDO: ${form.name}` : 'Nova categoria'}
         </h2>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="space-y-3">
@@ -174,7 +190,12 @@ export default function AdminCategoriesPage() {
                 min="0"
                 step="1"
                 value={form.position}
-                onChange={(e) => setForm({ ...form, position: Number(e.target.value || 0) })}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    position: e.target.value === '' ? '' : Number(e.target.value),
+                  })
+                }
                 placeholder="Ex.: 0"
                 className="w-full rounded border p-3"
               />
@@ -195,6 +216,7 @@ export default function AdminCategoriesPage() {
             <label className="block rounded border p-3">
               <span className="mb-2 block text-sm font-medium">Imagem da categoria</span>
               <input
+                key={fileInputKey}
                 type="file"
                 accept="image/*"
                 onChange={(e) => {
@@ -227,6 +249,7 @@ export default function AdminCategoriesPage() {
                     onClick={() => {
                       setCurrentImageUrl(null);
                       setFile(null);
+                      setFileInputKey((key) => key + 1);
                       setRemoveCurrentImage(true);
                     }}
                     className="mt-3 rounded border border-red-200 px-3 py-2 text-sm text-red-600"
@@ -241,21 +264,29 @@ export default function AdminCategoriesPage() {
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <button
             type="button"
-            onClick={submit}
+            onClick={() => editor.run(submit)}
             className="rounded bg-brand-dark px-4 py-3 text-white"
           >
             {editingId ? 'Salvar categoria' : 'Criar categoria'}
           </button>
           {editingId && (
-            <button type="button" onClick={resetForm} className="rounded border px-4 py-3">
+            <button
+              type="button"
+              onClick={() => editor.cancel(resetForm)}
+              className="rounded border px-4 py-3"
+            >
               Cancelar
             </button>
           )}
         </div>
-        {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
+        {error && (
+          <div role="alert" className="mt-3 text-sm text-red-600">
+            {error}
+          </div>
+        )}
       </div>
 
-      <div className="space-y-3">
+      <div data-admin-list tabIndex={-1} aria-label="Lista de categorias" className="space-y-3">
         {loading && (
           <div className="rounded-2xl bg-white p-4 text-sm text-gray-600 shadow">
             Carregando categorias...
@@ -267,7 +298,13 @@ export default function AdminCategoriesPage() {
           </div>
         )}
         {items.map((category) => (
-          <div key={category.id} className="rounded-2xl bg-white p-4 shadow">
+          <div
+            key={category.id}
+            data-admin-item={category.id}
+            tabIndex={-1}
+            data-updated={editor.highlighted === category.id}
+            className="rounded-2xl bg-white p-4 shadow"
+          >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -298,7 +335,7 @@ export default function AdminCategoriesPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => remove(category.id)}
+                  onClick={() => editor.run(() => remove(category.id))}
                   className="rounded bg-red-500 px-4 py-2 text-white"
                 >
                   Excluir
@@ -308,6 +345,6 @@ export default function AdminCategoriesPage() {
           </div>
         ))}
       </div>
-    </>
+    </fieldset>
   );
 }

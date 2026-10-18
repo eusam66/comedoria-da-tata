@@ -1,5 +1,7 @@
 'use client';
 
+import DishPrice from './DishPrice';
+import { cents, effectivePrice } from '../lib/pricing';
 import React, { useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -31,7 +33,7 @@ export default function DishDetailClient({ dish }: { dish: Dish }) {
     [addons, addonQtyMap]
   );
 
-  const total = (Number(dish.price) + selectedAddonsTotal(selectedAddons)) * qty;
+  const total = (cents(effectivePrice(dish)) + cents(selectedAddonsTotal(selectedAddons))) * qty / 100;
   const unavailable = dish.isAvailable === false || Number(dish.stock ?? 1) < 1;
 
   function changeAddonQty(addon: DishAddon, nextQty: number) {
@@ -134,7 +136,7 @@ export default function DishDetailClient({ dish }: { dish: Dish }) {
               Preço
             </p>
             <p className="mt-1 text-2xl font-bold text-brand-dark">
-              R$ {Number(dish.price).toFixed(2)}
+              <DishPrice dish={dish} />
             </p>
           </div>
           {dish.servings != null && (

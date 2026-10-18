@@ -9,6 +9,8 @@ export type Dish = {
   slug: string;
   description?: string;
   price: number;
+  promo_price?: number | null;
+  promo_active?: boolean;
   image?: string | null;
   categoryId?: string | null;
   categoryName?: string | null;
@@ -138,7 +140,9 @@ function mapDishRow(row: any): Dish {
     name: row.name,
     slug: row.slug,
     description: row.description,
-    price: row.price,
+    price: Number(row.price),
+    promo_price: row.promo_price == null ? null : Number(row.promo_price),
+    promo_active: row.promo_active === true,
     image: image,
     categoryId: row.category_id || null,
     categoryName: row.category_name || row.categoryName || row.categories?.name || null,
@@ -146,7 +150,7 @@ function mapDishRow(row: any): Dish {
     servings: row.servings ?? row.serves ?? null,
     popular: row.popular ?? row.is_featured ?? null,
     isNew: row.is_new || null,
-    isAvailable: Number(row.stock ?? (row.is_available === false ? 0 : 1)) >= 1,
+    isAvailable: row.is_available !== false && Number(row.stock ?? (row.is_available === false ? 0 : 1)) >= 1,
     stock: Number(row.stock ?? (row.is_available === false ? 0 : 1)),
     position: row.position ?? 0,
     addons: normalizedAddons

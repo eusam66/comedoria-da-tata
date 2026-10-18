@@ -1,6 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { validMoney } from '@/lib/pricing';
+import { useAdminEditor } from '@/lib/useAdminEditor';
+import { toastSuccess, toastError } from '@/lib/toast';
+import { useEffect, useState, useRef } from 'react';
 import { adminFetch } from '@/lib/adminFetch';
 
 type Beverage = {
@@ -12,11 +15,19 @@ type Beverage = {
   stock: number;
   position: number;
 };
-const empty = { name: '', size: '', price: 0, stock: 0, position: 0, image: '' };
+const empty = {
+  name: '',
+  size: '',
+  price: 0 as number | '',
+  stock: 0 as number | '',
+  position: 0 as number | '',
+  image: '',
+};
 
 export default function BeveragesAdmin() {
   const [items, setItems] = useState<Beverage[]>([]);
   const [form, setForm] = useState(empty);
+  const originalStock = useRef(0);
   const [editing, setEditing] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState('');
@@ -26,6 +37,8 @@ export default function BeveragesAdmin() {
     adminFetch<Beverage[]>('/api/admin/beverages')
       .then(setItems)
       .catch((e) => setError(e.message));
+
+  const editor = useAdminEditor(editing, JSON.stringify([form, file?.name]));
 
   useEffect(() => {
     load();
@@ -55,6 +68,10 @@ export default function BeveragesAdmin() {
     try {
       setError('');
       if (!form.name.trim() || !form.size.trim()) throw new Error('Informe nome e volume/tamanho.');
+      if (form.price === '' || (form.price !== 0 && !validMoney(form.price)))
+        throw new Error('Informe um preço válido antes de salvar.');
+      if (form.stock === '' || !Number.isInteger(form.stock) || form.stock < 0)
+        throw new Error('Informe um estoque válido antes de salvar.');
       let image = form.image;
       if (file) {
         const data = new FormData();
@@ -67,12 +84,26 @@ export default function BeveragesAdmin() {
         uploadedUrl = body.publicUrl;
         image = uploadedUrl;
       }
-      await adminFetch(editing ? `/api/admin/beverages/${editing}` : '/api/admin/beverages', {
-        method: editing ? 'PATCH' : 'POST',
-        body: JSON.stringify({ ...form, image }),
-      });
+      const payload: Partial<typeof form> = {
+        ...form,
+        price: Number(form.price),
+        position: Number(form.position),
+        image,
+      };
+      if (editing && form.stock === originalStock.current) delete payload.stock;
+      const saved = await adminFetch<Beverage>(
+        editing ? `/api/admin/beverages/${editing}` : '/api/admin/beverages',
+        {
+          method: editing ? 'PATCH' : 'POST',
+          body: JSON.stringify(payload),
+        }
+      );
+      setItems((current) =>
+        editing ? current.map((item) => (item.id === saved.id ? saved : item)) : [saved, ...current]
+      );
       resetForm();
-      await load();
+      editor.finish(saved.id);
+      toastSuccess('Bebida salva');
     } catch (e) {
       if (uploadedUrl)
         await fetch('/api/upload', {
@@ -81,6 +112,7 @@ export default function BeveragesAdmin() {
           body: JSON.stringify({ publicUrl: uploadedUrl }),
         }).catch(() => undefined);
       setError(e instanceof Error ? e.message : 'Não foi possível salvar.');
+      toastError('Não foi possível salvar a bebida');
     }
   }
 
@@ -91,6 +123,7 @@ export default function BeveragesAdmin() {
         body: JSON.stringify({ stock: Math.max(0, stock) }),
       });
       await load();
+      toastSuccess('Estoque atualizado');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao atualizar estoque.');
     }
@@ -98,7 +131,7 @@ export default function BeveragesAdmin() {
 
   const preview = filePreview || form.image;
   return (
-    <>
+    <fieldset disabled={editor.busy} className="min-w-0">
       <div className="mb-5">
         <h1 className="text-2xl font-display">Bebidas</h1>
         <p className="text-sm text-gray-600">
@@ -106,6 +139,13 @@ export default function BeveragesAdmin() {
         </p>
       </div>
       <section className="mb-6 grid gap-3 rounded-2xl bg-white p-4 shadow sm:grid-cols-2">
+        <h2
+          ref={editor.headingRef}
+          tabIndex={-1}
+          className="admin-editor-heading font-semibold sm:col-span-2"
+        >
+          {editing ? `EDITANDO: ${form.name}` : 'Cadastrar bebida'}
+        </h2>
         <label className="text-sm">
           Nome
           <input
@@ -131,7 +171,7 @@ export default function BeveragesAdmin() {
             step="0.01"
             className="mt-1 w-full rounded border p-3"
             value={form.price}
-            onChange={(e) => field('price', Number(e.target.value))}
+            onChange={(e) => field('price', e.target.value === '' ? '' : Number(e.target.value))}
           />
         </label>
         <label className="text-sm">
@@ -142,7 +182,7 @@ export default function BeveragesAdmin() {
             step="1"
             className="mt-1 w-full rounded border p-3"
             value={form.stock}
-            onChange={(e) => field('stock', Number(e.target.value))}
+            onChange={(e) => field('stock', e.target.value === '' ? '' : Number(e.target.value))}
           />
         </label>
         <label className="text-sm">
@@ -153,7 +193,7 @@ export default function BeveragesAdmin() {
             step="1"
             className="mt-1 w-full rounded border p-3"
             value={form.position}
-            onChange={(e) => field('position', Number(e.target.value))}
+            onChange={(e) => field('position', e.target.value === '' ? '' : Number(e.target.value))}
           />
         </label>
         <label className="text-sm">
@@ -190,21 +230,31 @@ export default function BeveragesAdmin() {
           </div>
         )}
         <div className="flex gap-2 sm:col-span-2">
-          <button onClick={save} className="rounded bg-brand-dark px-5 py-3 text-white">
+          <button
+            onClick={() => editor.run(save)}
+            className="rounded bg-brand-dark px-5 py-3 text-white"
+          >
             {editing ? 'Salvar alterações' : 'Cadastrar bebida'}
           </button>
           {editing && (
-            <button onClick={resetForm} className="rounded border px-5 py-3">
+            <button onClick={() => editor.cancel(resetForm)} className="rounded border px-5 py-3">
               Cancelar
             </button>
           )}
         </div>
-        {error && <p className="text-sm text-red-600 sm:col-span-2">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-red-600 sm:col-span-2">
+            {error}
+          </p>
+        )}
       </section>
-      <div className="space-y-3">
+      <div data-admin-list tabIndex={-1} aria-label="Lista de bebidas" className="space-y-3">
         {items.map((item) => (
           <article
             key={item.id}
+            data-admin-item={item.id}
+            tabIndex={-1}
+            data-updated={editor.highlighted === item.id}
             className="flex flex-col gap-3 rounded-2xl bg-white p-4 shadow sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="flex items-center gap-3">
@@ -245,21 +295,23 @@ export default function BeveragesAdmin() {
             <div className="flex flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <button
+                  aria-label={`Diminuir estoque de ${item.name}`}
                   disabled={item.stock < 1}
-                  onClick={() => setStock(item, item.stock - 1)}
+                  onClick={() => editor.run(() => setStock(item, item.stock - 1))}
                   className="rounded border px-3 py-2 disabled:opacity-40"
                 >
                   −
                 </button>
                 <b>{item.stock}</b>
                 <button
-                  onClick={() => setStock(item, item.stock + 1)}
+                  aria-label={`Aumentar estoque de ${item.name}`}
+                  onClick={() => editor.run(() => setStock(item, item.stock + 1))}
                   className="rounded border px-3 py-2"
                 >
                   +
                 </button>
                 <button
-                  onClick={() => setStock(item, 0)}
+                  onClick={() => editor.run(() => setStock(item, 0))}
                   className="rounded border border-red-200 px-3 py-2 text-red-700"
                 >
                   Zerar estoque
@@ -268,6 +320,9 @@ export default function BeveragesAdmin() {
               <button
                 className="rounded border px-4 py-2"
                 onClick={() => {
+                  if (!editor.begin(item.id)) return;
+                  setError('');
+                  originalStock.current = item.stock;
                   setEditing(item.id);
                   setFile(null);
                   setFileInputKey((key) => key + 1);
@@ -279,7 +334,6 @@ export default function BeveragesAdmin() {
                     position: item.position,
                     image: item.image_url || '',
                   });
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
               >
                 Editar
@@ -287,10 +341,18 @@ export default function BeveragesAdmin() {
               <button
                 className="rounded bg-red-500 px-4 py-2 text-white"
                 onClick={async () => {
-                  if (confirm('Excluir esta bebida?')) {
-                    await adminFetch(`/api/admin/beverages/${item.id}`, { method: 'DELETE' });
-                    await load();
-                  }
+                  if (!confirm('Excluir esta bebida?')) return;
+                  await editor.run(async () => {
+                    try {
+                      await adminFetch(`/api/admin/beverages/${item.id}`, { method: 'DELETE' });
+                      setItems((current) => current.filter((row) => row.id !== item.id));
+                      if (editing === item.id) resetForm();
+                      editor.removed(item.id);
+                      toastSuccess('Bebida excluída');
+                    } catch {
+                      toastError('Não foi possível excluir a bebida');
+                    }
+                  });
                 }}
               >
                 Excluir
@@ -299,6 +361,6 @@ export default function BeveragesAdmin() {
           </article>
         ))}
       </div>
-    </>
+    </fieldset>
   );
 }

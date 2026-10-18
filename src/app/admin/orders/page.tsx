@@ -1,17 +1,237 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { cents, money } from '@/lib/pricing';
 import { adminFetch } from '@/lib/adminFetch';
 import { toastError, toastSuccess } from '@/lib/toast';
 import { fulfillmentLines, readFulfillment } from '@/lib/deliveryZones';
 import OrderFulfillmentDetails from '@/components/OrderFulfillmentDetails';
-const STATUSES = ['Novo','Em preparo','Pronto','Finalizado','Cancelado'] as const;
-const FILTERS = ['Todos','Hoje',...STATUSES] as const;
-const payment = (o:any) => o.metadata?.payment === 'cash' ? `Dinheiro${o.metadata?.change?` (troco para R$ ${o.metadata.change})`:''}` : o.metadata?.payment === 'card' ? 'Cartão' : o.metadata?.payment === 'pix' ? 'PIX' : 'Não informado';
-function summary(o:any) { const lines=[`Pedido ${o.code}`,`Cliente: ${o.customer_name||'—'}`,`Telefone: ${o.customer_phone||'—'}`,'',...(o.items||[]).map((i:any)=>`${i.quantity}x ${i.name}${i.addons?.length?` + ${i.addons.map((a:any)=>`${a.qty||1}x ${a.name}`).join(', ')}`:''}${i.notes?` — Obs: ${i.notes}`:''}`),'',...fulfillmentLines(readFulfillment(o.metadata), o.metadata?.delivery, o.customer_address),`Pagamento: ${payment(o)}`,o.metadata?.notes?`Observações: ${o.metadata.notes}`:'',`Total: R$ ${Number(o.total||0).toFixed(2)}`]; return lines.filter(Boolean).join('\n'); }
-export default function OrdersPage(){
- const [orders,setOrders]=useState<any[]>([]); const [query,setQuery]=useState(''); const [filter,setFilter]=useState('Todos'); const [loading,setLoading]=useState(true); const load=()=>adminFetch<any[]>('/api/admin/orders').then(setOrders).finally(()=>setLoading(false)); useEffect(()=>{const requested=new URLSearchParams(window.location.search).get('filter'); if(requested)setFilter(requested); load().catch((e)=>toastError(e.message));},[]);
- const shown=useMemo(()=>orders.filter((o:any)=>{const q=query.toLowerCase().trim(); const matches=!q||[o.code,o.customer_name,o.customer_phone].some(v=>String(v||'').toLowerCase().includes(q)); const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Recife'}).format(new Date()); const status=filter==='Todos'||(filter==='Hoje'&&o.created_at&&new Intl.DateTimeFormat('en-CA',{timeZone:'America/Recife'}).format(new Date(o.created_at))===today)||o.status===filter; return matches&&status;}),[orders,query,filter]);
- async function change(o:any,status:string){try{if(status==='Cancelado'&&!confirm('Cancelar e devolver o estoque deste pedido?'))return; await adminFetch(`/api/admin/orders/${o.code}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})}); await load(); toastSuccess(status==='Cancelado'?'Pedido cancelado e estoque devolvido uma única vez':'Status atualizado');}catch(e:any){toastError(e.message);}}
- async function copy(o:any){try{await navigator.clipboard.writeText(summary(o));toastSuccess('Pedido copiado');}catch{toastError('Não foi possível copiar o pedido');}}
- return <><div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-display">Pedidos</h1><p className="text-sm text-gray-600"><b>{orders.filter(o=>o.status==='Novo').length} novos</b> aguardando atendimento.</p></div></div><div className="mb-4 grid gap-3 rounded-2xl bg-white p-4 shadow md:grid-cols-[1fr_auto]"><input aria-label="Buscar pedidos" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar por nome, telefone ou código" className="rounded border p-3"/><div className="flex max-w-full gap-2 overflow-x-auto pb-1">{FILTERS.map(f=><button key={f} onClick={()=>setFilter(f)} className={`whitespace-nowrap rounded-full px-3 py-2 text-sm ${filter===f?'bg-brand-dark text-white':'border bg-white'}`}>{f}</button>)}</div></div>{loading?<p>Carregando...</p>:<div className="space-y-3">{shown.map(o=><article key={o.id} className={`rounded-2xl border p-4 shadow ${o.status==='Novo'?'border-orange-300 bg-orange-50':'bg-white'}`}><div className="flex flex-wrap justify-between gap-2"><div><b className="text-lg">{o.code}</b>{o.status==='Novo'&&<span className="ml-2 rounded-full bg-orange-600 px-2 py-1 text-xs text-white">Novo</span>}<p className="text-sm text-gray-600">{o.created_at?new Date(o.created_at).toLocaleString('pt-BR',{timeZone:'America/Recife'}):''}</p></div><b>R$ {Number(o.total||0).toFixed(2)}</b></div><div className="mt-3 grid gap-1 text-sm md:grid-cols-2"><p>Cliente: {o.customer_name||'—'}</p><p>Telefone: {o.customer_phone||'—'}</p><OrderFulfillmentDetails metadata={o.metadata} address={o.customer_address} /><p>Pagamento: {payment(o)}</p></div><div className="mt-3 space-y-1 rounded-xl bg-gray-50 p-3 text-sm">{(o.items||[]).map((i:any,idx:number)=><div key={`${i.id||i.dishId||i.name}-${idx}`}><b>{i.quantity}x {i.name}</b>{i.addons?.length>0&&<div className="text-gray-600">Adicionais: {i.addons.map((a:any)=>`${a.qty||1}x ${a.name}`).join(', ')}</div>}{i.notes&&<div className="text-gray-600">Obs: {i.notes}</div>}</div>)}</div>{o.metadata?.notes&&<p className="mt-2 text-sm"><b>Observações:</b> {o.metadata.notes}</p>}<div className="mt-3 flex flex-wrap gap-2"><button onClick={()=>copy(o)} className="rounded border px-3 py-2">Copiar pedido</button>{STATUSES.map(s=>s!==o.status&&<button key={s} onClick={()=>change(o,s)} className={`rounded px-3 py-2 text-sm ${s==='Cancelado'?'border border-red-300 text-red-700':'bg-brand-dark text-white'}`}>{s}</button>)}</div></article>)}{shown.length===0&&<p className="rounded bg-white p-4">Nenhum pedido encontrado.</p>}</div>}</>;
+const STATUSES = ['Novo', 'Em preparo', 'Pronto', 'Finalizado', 'Cancelado'] as const;
+const FILTERS = ['Todos', 'Hoje', ...STATUSES] as const;
+const payment = (o: any) =>
+  o.metadata?.payment === 'cash'
+    ? `Dinheiro${o.metadata?.change ? ` (troco para R$ ${o.metadata.change})` : ''}`
+    : o.metadata?.payment === 'card'
+    ? 'Cartão'
+    : o.metadata?.payment === 'pix'
+    ? 'PIX'
+    : 'Não informado';
+function summary(o: any) {
+  const lines = [
+    `Pedido ${o.code}`,
+    `Cliente: ${o.customer_name || '—'}`,
+    `Telefone: ${o.customer_phone || '—'}`,
+    '',
+    ...(o.items || []).map(
+      (i: any) =>
+        `${i.quantity}x ${i.name}${
+          i.addons?.length
+            ? ` + ${i.addons.map((a: any) => `${a.qty || 1}x ${a.name}`).join(', ')}`
+            : ''
+        }${i.notes ? ` — Obs: ${i.notes}` : ''}`
+    ),
+    '',
+    ...fulfillmentLines(readFulfillment(o.metadata), o.metadata?.delivery, o.customer_address),
+    `Pagamento: ${payment(o)}`,
+    o.metadata?.notes ? `Observações: ${o.metadata.notes}` : '',
+    `Total: R$ ${Number(o.total || 0).toFixed(2)}`,
+  ];
+  return lines.filter(Boolean).join('\n');
+}
+export default function OrdersPage() {
+  const pending = useRef(new Set<string>());
+  const [busy, setBusy] = useState<string[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState('Todos');
+  const [loading, setLoading] = useState(true);
+  const load = () =>
+    adminFetch<any[]>('/api/admin/orders')
+      .then(setOrders)
+      .finally(() => setLoading(false));
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('filter');
+    if (requested) setFilter(requested);
+    load().catch((e) => toastError(e.message));
+  }, []);
+  const shown = useMemo(
+    () =>
+      orders.filter((o: any) => {
+        const q = query.toLowerCase().trim();
+        const matches =
+          !q ||
+          [o.code, o.customer_name, o.customer_phone].some((v) =>
+            String(v || '')
+              .toLowerCase()
+              .includes(q)
+          );
+        const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Recife' }).format(
+          new Date()
+        );
+        const status =
+          filter === 'Todos' ||
+          (filter === 'Hoje' &&
+            o.created_at &&
+            new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Recife' }).format(
+              new Date(o.created_at)
+            ) === today) ||
+          o.status === filter;
+        return matches && status;
+      }),
+    [orders, query, filter]
+  );
+  async function change(o: any, status: string) {
+    if (pending.current.has(o.id)) return;
+    pending.current.add(o.id);
+    setBusy([...pending.current]);
+    try {
+      if (status === 'Cancelado' && !confirm('Cancelar e devolver o estoque deste pedido?')) return;
+      await adminFetch(`/api/admin/orders/${o.code}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      await load();
+      toastSuccess(
+        status === 'Cancelado'
+          ? 'Pedido cancelado e estoque devolvido uma única vez'
+          : 'Status atualizado'
+      );
+    } catch (e: any) {
+      toastError(e.message);
+    } finally {
+      pending.current.delete(o.id);
+      setBusy([...pending.current]);
+    }
+  }
+  async function copy(o: any) {
+    try {
+      await navigator.clipboard.writeText(summary(o));
+      toastSuccess('Pedido copiado');
+    } catch {
+      toastError('Não foi possível copiar o pedido');
+    }
+  }
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-display">Pedidos</h1>
+          <p className="text-sm text-gray-600">
+            <b>{orders.filter((o) => o.status === 'Novo').length} novos</b> aguardando atendimento.
+          </p>
+        </div>
+      </div>
+      <div className="mb-4 grid gap-3 rounded-2xl bg-white p-4 shadow md:grid-cols-[1fr_auto]">
+        <input
+          aria-label="Buscar pedidos"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar por nome, telefone ou código"
+          className="rounded border p-3"
+        />
+        <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
+          {FILTERS.map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`whitespace-nowrap rounded-full px-3 py-2 text-sm ${
+                filter === f ? 'bg-brand-dark text-white' : 'border bg-white'
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
+      {loading ? (
+        <p>Carregando...</p>
+      ) : (
+        <div className="space-y-3">
+          {shown.map((o) => (
+            <article
+              key={o.id}
+              className={`rounded-2xl border p-4 shadow ${
+                o.status === 'Novo' ? 'border-orange-300 bg-orange-50' : 'bg-white'
+              }`}
+            >
+              <div className="flex flex-wrap justify-between gap-2">
+                <div>
+                  <b className="text-lg">{o.code}</b>
+                  {o.status === 'Novo' && (
+                    <span className="ml-2 rounded-full bg-orange-600 px-2 py-1 text-xs text-white">
+                      Novo
+                    </span>
+                  )}
+                  <p className="text-sm text-gray-600">
+                    {o.created_at
+                      ? new Date(o.created_at).toLocaleString('pt-BR', {
+                          timeZone: 'America/Recife',
+                        })
+                      : ''}
+                  </p>
+                </div>
+                <b>R$ {Number(o.total || 0).toFixed(2)}</b>
+              </div>
+              <div className="mt-3 grid gap-1 text-sm md:grid-cols-2">
+                <p>Cliente: {o.customer_name || '—'}</p>
+                <p>Telefone: {o.customer_phone || '—'}</p>
+                <OrderFulfillmentDetails metadata={o.metadata} address={o.customer_address} />
+                <p>Pagamento: {payment(o)}</p>
+              </div>
+              <div className="mt-3 space-y-1 rounded-xl bg-gray-50 p-3 text-sm">
+                {(o.items || []).map((i: any, idx: number) => (
+                  <div key={`${i.id || i.dishId || i.name}-${idx}`}>
+                    <b>
+                      {i.quantity}x {i.name}
+                    </b>
+                    {i.price != null && Number.isFinite(Number(i.price)) && (
+                      <p className="text-gray-600">
+                        {money(Number(i.price))} por unidade ·{' '}
+                        {money((cents(Number(i.price)) * Number(i.quantity)) / 100)} no item
+                      </p>
+                    )}
+                    {i.addons?.length > 0 && (
+                      <div className="text-gray-600">
+                        Adicionais:{' '}
+                        {i.addons.map((a: any) => `${a.qty || 1}x ${a.name}`).join(', ')}
+                      </div>
+                    )}
+                    {i.notes && <div className="text-gray-600">Obs: {i.notes}</div>}
+                  </div>
+                ))}
+              </div>
+              {o.metadata?.notes && (
+                <p className="mt-2 text-sm">
+                  <b>Observações:</b> {o.metadata.notes}
+                </p>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button onClick={() => copy(o)} className="rounded border px-3 py-2">
+                  Copiar pedido
+                </button>
+                {STATUSES.map(
+                  (s) =>
+                    s !== o.status && (
+                      <button
+                        key={s}
+                        disabled={busy.includes(o.id)}
+                        onClick={() => change(o, s)}
+                        className={`rounded px-3 py-2 text-sm ${
+                          s === 'Cancelado'
+                            ? 'border border-red-300 text-red-700'
+                            : 'bg-brand-dark text-white'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    )
+                )}
+              </div>
+            </article>
+          ))}
+          {shown.length === 0 && <p className="rounded bg-white p-4">Nenhum pedido encontrado.</p>}
+        </div>
+      )}
+    </>
+  );
 }

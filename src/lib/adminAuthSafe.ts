@@ -1,4 +1,4 @@
-﻿import supabaseAdmin from './supabaseAdmin';
+import supabaseAdmin from './supabaseAdmin';
 
 function parseCookies(cookieHeader: string | null) {
   const cookies: Record<string, string> = {};
@@ -50,6 +50,6 @@ export async function requireAdmin(req: Request) {
     adminRow = byEmail.data;
   }
 
-  if (!adminRow) throw new Error('Forbidden');
+  if (!adminRow || adminRow.role !== 'admin') throw new Error('Forbidden');
   return { id: userId, email: user?.email, role: adminRow.role || 'admin' };
 }

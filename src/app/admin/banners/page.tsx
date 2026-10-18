@@ -1,4 +1,5 @@
 'use client';
+import { useAdminEditor } from '../../../lib/useAdminEditor';
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { compressImage } from '../../../lib/imageCompress';
@@ -11,7 +12,7 @@ type BannerForm = {
   subtitle: string;
   link: string;
   alt: string;
-  position: number;
+  position: number | '';
   active: boolean;
 };
 
@@ -27,12 +28,15 @@ const initialForm: BannerForm = {
 export default function AdminBannersPage() {
   const [items, setItems] = useState<any[]>([]);
   const [form, setForm] = useState<BannerForm>(initialForm);
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const [removeCurrentImage, setRemoveCurrentImage] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const editor = useAdminEditor(editingId, JSON.stringify([form, file?.name, removeCurrentImage]));
 
   useEffect(() => {
     adminFetch<any[]>('/api/admin/banners')
@@ -58,6 +62,7 @@ export default function AdminBannersPage() {
   function resetForm() {
     setForm(initialForm);
     setFile(null);
+    setFileInputKey((key) => key + 1);
     setEditingId(null);
     setError(null);
     setCurrentImageUrl(null);
@@ -68,7 +73,7 @@ export default function AdminBannersPage() {
     setError(null);
     try {
       const imageUrl = await uploadIfNeeded();
-      const payload: any = { ...form };
+      const payload: any = { ...form, position: Number(form.position) };
       if (imageUrl) payload.image = imageUrl;
       if (!imageUrl && removeCurrentImage && editingId) payload.image = null;
       const json = await adminFetch<any>(
@@ -88,6 +93,7 @@ export default function AdminBannersPage() {
         toastSuccess('Promoção criada');
       }
       resetForm();
+      editor.finish(json.id);
     } catch (e: any) {
       setError(e.message || 'Erro ao salvar promoção');
       toastError(e?.message || 'Erro ao salvar promoção');
@@ -95,6 +101,8 @@ export default function AdminBannersPage() {
   }
 
   function startEdit(banner: any) {
+    if (!editor.begin(banner.id)) return;
+    setError(null);
     setEditingId(banner.id);
     setForm({
       title: banner.title || '',
@@ -105,6 +113,7 @@ export default function AdminBannersPage() {
       active: banner.active ?? true,
     });
     setFile(null);
+    setFileInputKey((key) => key + 1);
     setCurrentImageUrl(banner.image_url || null);
     setRemoveCurrentImage(false);
   }
@@ -114,6 +123,8 @@ export default function AdminBannersPage() {
     try {
       await adminFetch<{ ok: boolean }>(`/api/admin/banners/${id}`, { method: 'DELETE' });
       setItems((current) => current.filter((item) => item.id !== id));
+      if (editingId === id) resetForm();
+      editor.removed(id);
       toastSuccess('Promoção excluída');
     } catch (e: any) {
       setError(e.message || 'Erro ao excluir promoção');
@@ -122,12 +133,16 @@ export default function AdminBannersPage() {
   }
 
   return (
-    <>
+    <fieldset disabled={editor.busy} className="min-w-0">
       <h1 className="mb-4 text-2xl font-display">Promoções e banners</h1>
 
       <div className="mb-6 rounded-2xl bg-white p-4 shadow">
-        <h2 className="mb-4 text-lg font-semibold">
-          {editingId ? 'Editar promoção' : 'Nova promoção'}
+        <h2
+          ref={editor.headingRef}
+          tabIndex={-1}
+          className="admin-editor-heading mb-4 text-lg font-semibold"
+        >
+          {editingId ? `EDITANDO: ${form.title}` : 'Nova banner'}
         </h2>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="space-y-3">
@@ -183,7 +198,12 @@ export default function AdminBannersPage() {
                 min="0"
                 step="1"
                 value={form.position}
-                onChange={(e) => setForm({ ...form, position: Number(e.target.value || 0) })}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    position: e.target.value === '' ? '' : Number(e.target.value),
+                  })
+                }
                 placeholder="Ex.: 0"
                 className="w-full rounded border p-3"
               />
@@ -204,6 +224,7 @@ export default function AdminBannersPage() {
             <label className="block rounded border p-3">
               <span className="mb-2 block text-sm font-medium">Imagem do banner</span>
               <input
+                key={fileInputKey}
                 type="file"
                 accept="image/*"
                 onChange={(e) => {
@@ -236,6 +257,7 @@ export default function AdminBannersPage() {
                     onClick={() => {
                       setCurrentImageUrl(null);
                       setFile(null);
+                      setFileInputKey((key) => key + 1);
                       setRemoveCurrentImage(true);
                     }}
                     className="mt-3 rounded border border-red-200 px-3 py-2 text-sm text-red-600"
@@ -250,21 +272,29 @@ export default function AdminBannersPage() {
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <button
             type="button"
-            onClick={submit}
+            onClick={() => editor.run(submit)}
             className="rounded bg-brand-dark px-4 py-3 text-white"
           >
             {editingId ? 'Salvar promoção' : 'Criar promoção'}
           </button>
           {editingId && (
-            <button type="button" onClick={resetForm} className="rounded border px-4 py-3">
+            <button
+              type="button"
+              onClick={() => editor.cancel(resetForm)}
+              className="rounded border px-4 py-3"
+            >
               Cancelar
             </button>
           )}
         </div>
-        {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
+        {error && (
+          <div role="alert" className="mt-3 text-sm text-red-600">
+            {error}
+          </div>
+        )}
       </div>
 
-      <div className="space-y-3">
+      <div data-admin-list tabIndex={-1} aria-label="Lista de banners" className="space-y-3">
         {loading && (
           <div className="rounded-2xl bg-white p-4 text-sm text-gray-600 shadow">
             Carregando promoções...
@@ -276,7 +306,13 @@ export default function AdminBannersPage() {
           </div>
         )}
         {items.map((banner) => (
-          <div key={banner.id} className="rounded-2xl bg-white p-4 shadow">
+          <div
+            key={banner.id}
+            data-admin-item={banner.id}
+            tabIndex={-1}
+            data-updated={editor.highlighted === banner.id}
+            className="rounded-2xl bg-white p-4 shadow"
+          >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -305,7 +341,7 @@ export default function AdminBannersPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => remove(banner.id)}
+                  onClick={() => editor.run(() => remove(banner.id))}
                   className="rounded bg-red-500 px-4 py-2 text-white"
                 >
                   Excluir
@@ -315,6 +351,6 @@ export default function AdminBannersPage() {
           </div>
         ))}
       </div>
-    </>
+    </fieldset>
   );
 }

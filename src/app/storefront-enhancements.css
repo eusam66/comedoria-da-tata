@@ -239,6 +239,12 @@ body {
 .order-confirmation h2 { font-size: 36px; }
 .order-confirmation p { overflow-wrap: anywhere; line-height: 1.5; }
 .order-confirmation a { display: block; text-align: center; text-decoration: none; }
+.order-confirmation-actions { display: grid; gap: 16px; }
+.order-confirmation .order-confirmation-action { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 56px; padding: 16px 20px; border: 0; border-radius: 999px; color: #fff; font-size: 16px; font-weight: 800; line-height: 1.4; text-align: center; position: static; }
+.order-confirmation-whatsapp { background: #3c8043; }
+.order-confirmation-copy { background: #b95419; }
+.order-confirmation-action:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+.order-confirmation-action:disabled { cursor: not-allowed; opacity: .65; }
 .order-confirmation label { display: grid; gap: 8px; }
 .order-confirmation textarea { width: 100%; min-width: 0; padding: 12px; border: 1px solid #5b2d1b2b; border-radius: 15px; font-size: 14px; }
 .checkout-form > fieldset { display: grid; gap: 17px; min-width: 0; }
@@ -249,3 +255,14 @@ body {
 .receipt-summary { padding: 14px; border-radius: 15px; background: #f0e5d8; }
 .receipt-summary ul { padding-left: 18px; }
 .receipt-summary p { margin-top: 8px; }
+
+.offers-section { margin: 1rem 0 2rem; }
+.offers-section h2 { margin-bottom: 1rem; font-size: 1.4rem; }
+.offers-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,240px),1fr)); gap: .75rem; }
+.offer-card { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: 1rem; border: 1px solid #d39563; border-radius: 1rem; background: #fff5e6; min-width: 0; }
+.offer-card a { min-width: 0; color: #642d15; text-decoration: none; }
+.offer-card b { display: block; overflow-wrap: anywhere; }
+.offer-card button { flex-shrink: 0; min-height: 44px; background: #71351c; color: white; border-radius: .6rem; padding: .6rem; }
+.offer-card button:disabled { opacity: .6; }
+.dish-info .dish-price { color: #71351c; }
+.checkout-items p { display: flex; justify-content: space-between; gap: 1rem; margin-block: .5rem; font-size: .9rem; }

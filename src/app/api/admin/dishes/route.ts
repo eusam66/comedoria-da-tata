@@ -8,7 +8,7 @@ export async function GET(req: Request) {
     return NextResponse.json(list);
   } catch (err:any) {
     console.error('admin GET dishes', err);
-    const status = err.message === 'Forbidden' ? 403 : err.message === 'Unauthorized' ? 401 : 500;
+    const status = err.message === 'Forbidden' ? 403 : err.message === 'Unauthorized' ? 401 : /preço|promocional|promoção/i.test(err.message) || err.code === '23514' ? 400 : 500;
     return NextResponse.json({ error: err.message }, { status });
   }
 }
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     return NextResponse.json(created);
   } catch (err:any) {
     console.error('admin POST dishes', err);
-    const status = err.message === 'Forbidden' ? 403 : err.message === 'Unauthorized' ? 401 : 500;
+    const status = err.message === 'Forbidden' ? 403 : err.message === 'Unauthorized' ? 401 : /preço|promocional|promoção/i.test(err.message) || err.code === '23514' ? 400 : 500;
     return NextResponse.json({ error: err.message }, { status });
   }
 }

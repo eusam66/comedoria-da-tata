@@ -1,9 +1,8 @@
-import { generateOrderCode } from './orders';
+import { pricingError } from './pricing';
 import supabaseAdmin from './supabaseAdmin';
 import { slugify } from './slug';
 import type { OrderFulfillment } from './deliveryZones';
 import {
-  removeStorageFileByPublicUrl,
   removeStorageFileByPublicUrlIfUnreferenced,
 } from './storageAdmin';
 
@@ -90,7 +89,7 @@ export async function adminUpdateCategory(
   if (error) throw error;
   const previousImage = current.data?.image_url || null;
   if (payload.image !== undefined && previousImage && previousImage !== data.image_url) {
-    await removeStorageFileByPublicUrl(previousImage);
+    await removeStorageFileByPublicUrlIfUnreferenced(previousImage);
   }
   return data;
 }
@@ -102,7 +101,7 @@ export async function adminDeleteCategory(id: string) {
   if (error) throw error;
   // detach category from dishes (set null)
   await adminClient().from('dishes').update({ category_id: null }).eq('category_id', id);
-  await removeStorageFileByPublicUrl(current.data?.image_url || null);
+  await removeStorageFileByPublicUrlIfUnreferenced(current.data?.image_url || null);
   return true;
 }
 
@@ -117,6 +116,9 @@ export async function adminListDishes() {
 }
 
 export async function adminCreateDish(payload: any) {
+  const validation = pricingError(payload);
+  if (validation) throw new Error(validation);
+  if (payload.promo_active !== undefined && typeof payload.promo_active !== 'boolean') throw new Error('Ativação de promoção inválida.');
   const id = crypto.randomUUID();
   const code = payload.code || `D-${Date.now()}`;
   const row = {
@@ -125,7 +127,9 @@ export async function adminCreateDish(payload: any) {
     name: payload.name,
     slug: payload.slug,
     description: payload.description || null,
-    price: payload.price || 0,
+    price: payload.price,
+    promo_price: payload.promo_price ?? null,
+    promo_active: payload.promo_active ?? false,
     image_url: payload.image || null,
     category_id: payload.categoryId || null,
     ingredients:
@@ -146,7 +150,12 @@ export async function adminCreateDish(payload: any) {
 export async function adminUpdateDish(id: string, payload: any) {
   const current = await adminClient().from('dishes').select('*').eq('id', id).maybeSingle();
   if (current.error) throw current.error;
+  const validation = pricingError({ ...current.data, ...payload });
+  if (validation) throw new Error(validation);
+  if (payload.promo_active !== undefined && typeof payload.promo_active !== 'boolean') throw new Error('Ativação de promoção inválida.');
   const patch: any = {};
+  if (payload.promo_price !== undefined) patch.promo_price = payload.promo_price;
+  if (payload.promo_active !== undefined) patch.promo_active = payload.promo_active;
   if (payload.name !== undefined) patch.name = payload.name;
   if (payload.slug !== undefined) patch.slug = payload.slug;
   if (payload.description !== undefined) patch.description = payload.description;
@@ -174,7 +183,7 @@ export async function adminUpdateDish(id: string, payload: any) {
   if (error) throw error;
   const previousImage = current.data?.image_url || null;
   if (payload.image !== undefined && previousImage && previousImage !== data.image_url) {
-    await removeStorageFileByPublicUrl(previousImage);
+    await removeStorageFileByPublicUrlIfUnreferenced(previousImage);
   }
   return data;
 }
@@ -184,7 +193,7 @@ export async function adminDeleteDish(id: string) {
   if (current.error) throw current.error;
   const { error } = await adminClient().from('dishes').delete().eq('id', id);
   if (error) throw error;
-  await removeStorageFileByPublicUrl(current.data?.image_url || null);
+  await removeStorageFileByPublicUrlIfUnreferenced(current.data?.image_url || null);
   return true;
 }
 
@@ -311,7 +320,7 @@ export async function adminUpdateBanner(id: string, payload: any) {
   if (error) throw error;
   const previousImage = current.data?.image_url || null;
   if (payload.image !== undefined && previousImage && previousImage !== data.image_url) {
-    await removeStorageFileByPublicUrl(previousImage);
+    await removeStorageFileByPublicUrlIfUnreferenced(previousImage);
   }
   return data;
 }
@@ -321,7 +330,7 @@ export async function adminDeleteBanner(id: string) {
   if (current.error) throw current.error;
   const { error } = await adminClient().from('banners').delete().eq('id', id);
   if (error) throw error;
-  await removeStorageFileByPublicUrl(current.data?.image_url || null);
+  await removeStorageFileByPublicUrlIfUnreferenced(current.data?.image_url || null);
   return true;
 }
 
@@ -377,36 +386,6 @@ export type Order = {
   customer_address: string | null;
   metadata: OrderMetadata | null;
 };
-
-export async function adminCreateOrder(payload: {
-  items: Order['items'];
-  customer?: OrderMetadata;
-}) {
-  const id = crypto.randomUUID();
-  const code = generateOrderCode();
-  const total = (payload.items || []).reduce((s, it) => s + it.price * it.quantity, 0);
-  const customer = payload.customer || {};
-  const customerAddress =
-    customer.delivery === 'pickup'
-      ? 'Retirada no local'
-      : [customer.street, customer.number, customer.neighborhood, customer.complement]
-          .filter(Boolean)
-          .join(', ');
-  const row = {
-    id,
-    code,
-    items: payload.items,
-    total,
-    status: 'Novo',
-    customer_name: customer.name || null,
-    customer_phone: customer.phone || null,
-    customer_address: customerAddress || null,
-    metadata: payload.customer || null,
-  };
-  const { data, error } = await adminClient().from('orders').insert([row]).select().single();
-  if (error) throw error;
-  return data;
-}
 
 export async function adminListOrders() {
   const { data, error } = await adminClient()

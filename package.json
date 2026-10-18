@@ -10,6 +10,8 @@
     "format": "prettier --write .",
     "db:create-buckets": "node scripts/create_buckets.js",
     "db:seed": "node scripts/seed.js",
+    "test:compatibility": "node --test scripts/rpc-compatibility.test.cjs",
+    "test:promotions": "node --experimental-strip-types --test src/lib/pricing.test.ts scripts/promotions-routes.test.cjs",
     "test:hours": "node --experimental-strip-types --test src/lib/storeHours.test.ts",
     "test:checkout": "node --experimental-strip-types --test --test-isolation=none src/lib/whatsapp.test.ts src/lib/orderIdempotency.test.ts scripts/service-worker.test.cjs"
   },

@@ -1,6 +1,5 @@
 import supabase from '../supabase';
 import { OrderRow } from '../types';
-import { generateOrderCode } from '../orders';
 
 export const ordersRepo = {
   async list(): Promise<OrderRow[]> {
@@ -13,30 +12,14 @@ export const ordersRepo = {
     if (error) throw error;
     return (data as OrderRow) ?? null;
   },
-  async create(payload: { items: any; customer?: OrderRow['metadata'] }) {
-    const id = crypto.randomUUID();
-    const code = generateOrderCode();
-    const total = (payload.items || []).reduce((s:any, it:any) => s + (it.price || 0) * (it.quantity || 1), 0);
-    const customer = payload.customer || {};
-    const customerAddress = customer.delivery === 'pickup'
-      ? 'Retirada no local'
-      : [customer.street, customer.number, customer.neighborhood, customer.complement]
-          .filter(Boolean)
-          .join(', ');
-    const row = {
-      id,
-      code,
-      customer_name: customer.name || null,
-      customer_phone: customer.phone || null,
-      customer_address: customerAddress || null,
-      items: payload.items,
-      total,
-      status: 'Novo',
-      metadata: payload.customer || null
-    };
-    const { data, error } = await supabase.from('orders').insert([row]).select().single();
-    if (error) throw error;
-    return data as OrderRow;
+  async create(payload: { items: any; customer?: OrderRow['metadata']; expected_total_cents: number; idempotencyKey: string }) {
+    const response = await fetch('/api/orders/v2', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': payload.idempotencyKey },
+      body: JSON.stringify({ customer: payload.customer, items: payload.items, expected_total_cents: payload.expected_total_cents }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Não foi possível registrar o pedido.');
+    return result;
   },
   async updateStatus(code: string, newStatus: string) {
     // insert into order_history could be handled on server or via trigger; here we just update

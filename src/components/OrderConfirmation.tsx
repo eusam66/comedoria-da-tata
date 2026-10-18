@@ -27,9 +27,15 @@ export default function OrderConfirmation({ order }: { order: SavedOrder }) {
     </div>
     <p>Seu pedido foi salvo. Toque para enviar o pedido pelo WhatsApp e confirme o envio dentro do aplicativo.</p>
     <p>Abrir a conversa não envia a mensagem automaticamente.</p>
-    {href ? <a className="whatsapp-submit" href={href} target="_blank" rel="noopener noreferrer">ABRIR WHATSAPP</a>
-      : <p role="status">WhatsApp indisponível neste ambiente. A mensagem continua disponível para cópia.</p>}
-    <button className="continue" type="button" onClick={copy}>COPIAR MENSAGEM</button>
+    <div className="order-confirmation-actions">
+      {href ? (
+        <a className="order-confirmation-action order-confirmation-whatsapp" href={href} target="_blank" rel="noopener noreferrer">ABRIR WHATSAPP</a>
+      ) : (
+        <button className="order-confirmation-action order-confirmation-whatsapp" type="button" disabled aria-describedby="order-whatsapp-unavailable">ABRIR WHATSAPP</button>
+      )}
+      <button className="order-confirmation-action order-confirmation-copy" type="button" onClick={copy}>COPIAR MENSAGEM</button>
+    </div>
+    {!href && <p id="order-whatsapp-unavailable" role="status">WhatsApp indisponível neste ambiente. A mensagem continua disponível para cópia.</p>}
     <p role="status">{copyStatus}</p>
     <label>Resumo e mensagem do pedido
       <textarea aria-label="Mensagem do pedido" readOnly value={message} rows={12} />

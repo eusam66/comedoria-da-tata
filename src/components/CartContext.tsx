@@ -1,5 +1,6 @@
 'use client';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { cents, effectivePrice } from '../lib/pricing';
 import { DishRow } from '../lib/types';
 import { SelectedAddon, selectedAddonsKey, selectedAddonsTotal } from '../lib/addons';
 
@@ -25,6 +26,7 @@ type CartContextValue = {
   updateNotes: (id: string, notes: string) => void;
   removeItem: (id: string) => void;
   clear: () => void;
+  applyQuote: (rows: Array<{ id: string; price: number; base_price: number; regular_price: number; promo_active: boolean; addons: SelectedAddon[] }>) => void;
   subtotal: number;
   total: number;
   itemCount: number;
@@ -52,8 +54,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             const normalizedAddons = Array.isArray(item.selectedAddons)
               ? item.selectedAddons.filter((addon) => addon.qty > 0)
               : [];
-            const basePrice = Number(item.dish?.price || 0);
-            const unitPrice = basePrice + selectedAddonsTotal(normalizedAddons);
+            const basePrice = effectivePrice(item.dish);
+            const unitPrice = (cents(basePrice) + cents(selectedAddonsTotal(normalizedAddons))) / 100;
             return {
               ...item,
               selectedAddons: normalizedAddons,
@@ -81,7 +83,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const addonKey = selectedAddonsKey(selectedAddons);
     const notesKey = (notes || '').trim();
     const cartKey = `${dish.id}|${addonKey}|${notesKey}`;
-    const unitPrice = Number(dish.price || 0) + selectedAddonsTotal(selectedAddons);
+    const unitPrice = (cents(effectivePrice(dish)) + cents(selectedAddonsTotal(selectedAddons))) / 100;
 
     setItems((prev) => {
       const existing = prev.find((p) => p.id === cartKey);
@@ -110,7 +112,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems([]);
   }
 
-  const subtotal = useMemo(() => items.reduce((s, it) => s + Number(it.unitPrice || 0) * it.qty, 0), [items]);
+  const subtotal = useMemo(() => items.reduce((s, it) => s + cents(it.unitPrice) * it.qty, 0) / 100, [items]);
   const total = subtotal; // taxes/fees can be added later
   const itemCount = useMemo(() => items.reduce((s, it) => s + it.qty, 0), [items]);
 
@@ -121,6 +123,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     updateNotes,
     removeItem,
     clear,
+    applyQuote: (rows) => setItems(current => current.map((item, index) => {
+      const row = rows[index];
+      if (!row || row.id !== item.dish.id) return item;
+      return { ...item, unitPrice: Number(row.price), selectedAddons: row.addons,
+        dish: { ...item.dish, name: (row as any).name || item.dish.name, price: Number(row.regular_price),
+          promo_price: row.promo_active ? Number(row.base_price) : item.dish.promo_price, promo_active: row.promo_active } };
+    })),
     subtotal,
     total,
     itemCount,

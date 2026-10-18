@@ -24,7 +24,7 @@ async function main() {
       if (url.pathname === '/api/menu') return json([{ id: '22222222-2222-4222-8222-222222222222', name: 'HOMOLOGAÇÃO Prato', cat: 'Teste', desc: 'Fictício', price: 25.90, image: '/branding/logo-oficial.jpg', stock: 10, available: true }]);
       if (['/api/banners', '/api/beverages'].includes(url.pathname)) return json([]);
       if (url.pathname === '/api/delivery-zones') return json([{ id: '11111111-1111-4111-8111-111111111111', name: 'HOMOLOGAÇÃO Zona A', fee: 8.5 }]);
-      if (url.pathname === '/api/orders') {
+      if (url.pathname === '/api/orders/v2') {
         posts.push({ key: request.headers()['idempotency-key'], body: request.postData() });
         if (posts.length === 1) return route.abort('failed');
         const payload = JSON.parse(request.postData());

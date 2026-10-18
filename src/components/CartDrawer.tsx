@@ -1,9 +1,12 @@
 'use client';
 import Image from 'next/image';
+import { useDialogFocus } from '@/lib/useDialogFocus';
 import { useCart } from './CartContext';
 
 export default function CartDrawer() {
   const { items, isOpen, close, updateQty, removeItem, updateNotes, subtotal } = useCart();
+
+  useDialogFocus(isOpen, close);
 
   if (!isOpen) return null;
 
@@ -11,7 +14,7 @@ export default function CartDrawer() {
     <div className="fixed inset-0 z-50 flex items-end md:items-stretch">
       <div onClick={close} className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
 
-      <div className="relative z-10 w-full md:ml-auto md:w-[420px] bg-white/95 backdrop-blur-xl h-[85vh] md:h-full rounded-t-3xl md:rounded-l-3xl shadow-2xl overflow-hidden border border-brand-brown/10">
+      <div role="dialog" tabIndex={-1} aria-modal="true" aria-label="Seu carrinho" className="relative z-10 w-full md:ml-auto md:w-[420px] bg-white/95 backdrop-blur-xl h-[85vh] md:h-full rounded-t-3xl md:rounded-l-3xl shadow-2xl overflow-hidden border border-brand-brown/10">
         <div className="flex items-center justify-between border-b border-brand-brown/10 px-5 py-4 bg-white/90">
           <div>
             <h3 className="text-lg font-semibold text-brand-dark">Seu carrinho</h3>

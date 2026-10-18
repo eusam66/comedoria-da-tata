@@ -20,6 +20,8 @@ export type DishRow = {
   slug: string;
   description?: string | null;
   price: number;
+  promo_price?: number | null;
+  promo_active?: boolean;
   image?: string | null;
   image_url?: string | null;
   category_id?: string | null;

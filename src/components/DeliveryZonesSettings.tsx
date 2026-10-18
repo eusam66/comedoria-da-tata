@@ -1,5 +1,6 @@
 'use client';
 
+import { useAdminEditor } from '@/lib/useAdminEditor';
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { adminFetch } from '@/lib/adminFetch';
@@ -18,6 +19,8 @@ export default function DeliveryZonesSettings() {
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<string | null | undefined>(undefined);
   const [form, setForm] = useState(emptyForm);
+
+  const editor = useAdminEditor(editing ?? null, JSON.stringify(form));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -45,6 +48,7 @@ export default function DeliveryZonesSettings() {
       );
       applySaved(zone);
       setEditing(undefined);
+      editor.finish(zone.id);
       toastSuccess('Localização salva');
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar a localização.'); }
     finally { setSaving(false); }
@@ -71,7 +75,7 @@ export default function DeliveryZonesSettings() {
         <>
           <div className="mt-3 space-y-3">
             {zones.map((zone) => (
-              <article key={zone.id} className="rounded-xl border p-3">
+              <article key={zone.id} data-admin-item={zone.id} tabIndex={-1} data-updated={editor.highlighted === zone.id} className="rounded-xl border p-3">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <h3 className="min-w-0 break-words font-semibold">{zone.name}</h3>
                   <b>{formatMoney(zone.fee)}</b>
@@ -79,6 +83,7 @@ export default function DeliveryZonesSettings() {
                 <p className="mt-1 text-sm text-gray-600"><span className={zone.is_active ? 'text-green-700' : 'text-gray-600'}>{zone.is_active ? 'Ativo' : 'Inativo'}</span> · Ordem {zone.position}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <button type="button" className={buttonClass} disabled={saving || editing !== undefined} onClick={() => {
+                    if (!editor.begin(zone.id)) return;
                     setEditing(zone.id);
                     setError('');
                     setForm({ name: zone.name, fee: zone.fee.toFixed(2).replace('.', ','), is_active: zone.is_active, position: String(zone.position) });
@@ -90,11 +95,11 @@ export default function DeliveryZonesSettings() {
             {!zones.length && <p className="text-sm text-gray-600">Nenhuma localização cadastrada.</p>}
           </div>
           {editing === undefined ? <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" disabled={saving} className={buttonClass} onClick={() => { setForm(emptyForm); setEditing(null); setError(''); }}>+ Adicionar localização</button>
+            <button type="button" disabled={saving} className={buttonClass} onClick={() => { editor.begin('new-zone'); setForm(emptyForm); setEditing(null); setError(''); }}>+ Adicionar localização</button>
             <button type="button" disabled={saving} className={buttonClass} onClick={() => load()}>Atualizar lista</button>
           </div> : (
             <form onSubmit={save} className="mt-4 space-y-3 rounded-xl border p-3">
-              <h3 className="font-semibold">{editing ? 'Editar localização' : 'Adicionar localização'}</h3>
+              <h3 ref={editor.headingRef} tabIndex={-1} className="admin-editor-heading font-semibold">{editing ? `EDITANDO: ${form.name}` : 'Adicionar localização'}</h3>
               <AdminField label="Nome da localização" help="Nome mostrado ao cliente na escolha da entrega.">
                 <input required maxLength={100} className="w-full rounded border p-3" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
               </AdminField>
@@ -109,7 +114,7 @@ export default function DeliveryZonesSettings() {
               </AdminField>
               <div className="flex flex-wrap gap-2">
                 <button type="submit" disabled={saving} className={`${buttonClass} bg-brand-dark text-white`}>{saving ? 'Salvando...' : 'Salvar'}</button>
-                <button type="button" disabled={saving} className={buttonClass} onClick={() => { setEditing(undefined); setError(''); }}>Cancelar</button>
+                <button type="button" disabled={saving} className={buttonClass} onClick={() => editor.cancel(() => { setEditing(undefined); setError(''); })}>Cancelar</button>
               </div>
             </form>
           )}

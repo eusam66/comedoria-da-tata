@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useDialogFocus } from '@/lib/useDialogFocus';
+import DishPrice from '@/components/DishPrice';
+import { cents, hasPromotion } from '@/lib/pricing';
 import { useCart } from '@/components/CartContext';
 import { useStoreStatus } from '@/lib/useStoreStatus';
 import type { DishRow } from '@/lib/types';
@@ -19,6 +22,10 @@ type Dish = {
   cat: string;
   desc: string;
   price: number;
+  promo_price?: number | null;
+  promo_active?: boolean;
+  is_new?: boolean;
+  popular?: boolean;
   image: string;
   tag: string;
   available?: boolean;
@@ -138,7 +145,7 @@ const normalize = (value: string) =>
     .toLowerCase();
 
 export default function Home() {
-  const { items, addItem, updateQty, removeItem, clear, itemCount, total } = useCart();
+  const { items, addItem, updateQty, removeItem, clear, applyQuote, itemCount, total } = useCart();
   const [dishes, setDishes] = useState<Dish[]>(fallbackDishes);
   const [beverages, setBeverages] = useState<Dish[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
@@ -168,6 +175,9 @@ export default function Home() {
     change: '',
     notes: '',
   });
+  useDialogFocus(cartOpen, () => setCartOpen(false));
+  useDialogFocus(checkoutOpen && !(receipt && receiptVisible), () => { if (!submitLock.current) setCheckoutOpen(false); });
+  useDialogFocus(!!receipt && receiptVisible, () => setReceiptVisible(false));
   const deliveryZones = useDeliveryZones(checkoutOpen && customer.delivery === 'delivery');
   const selectedZone = deliveryZones.zones.find((zone) => zone.id === customer.delivery_zone_id);
   const checkoutTotal = checkoutTotalCents(total, customer.delivery, selectedZone) / 100;
@@ -194,7 +204,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    fetch('/api/menu')
+    const refreshMenu = () => fetch('/api/menu', { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : Promise.reject()))
       .then((remote: Dish[]) => {
         if (!Array.isArray(remote) || !remote.length) return;
@@ -213,6 +223,8 @@ export default function Home() {
         setDishes(enriched);
       })
       .catch(() => {});
+    refreshMenu();
+    window.addEventListener('focus', refreshMenu);
     fetch('/api/beverages')
       .then((response) => (response.ok ? response.json() : []))
       .then((items) =>
@@ -239,6 +251,7 @@ export default function Home() {
       .then((response) => (response.ok ? response.json() : []))
       .then((items) => setPromotions(Array.isArray(items) ? items : []))
       .catch(() => setPromotions([]));
+    return () => window.removeEventListener('focus', refreshMenu);
   }, []);
 
   const categories = useMemo(
@@ -253,7 +266,7 @@ export default function Home() {
           `${dish.name} ${dish.cat} ${dish.desc} ${dish.ingredients || ''}`
         );
         return matchesCategory && haystack.includes(normalize(query.trim()));
-      }),
+      }).sort((a,b) => !query.trim() && category === 'Todos' ? Number(hasPromotion(b)) - Number(hasPromotion(a)) : 0),
     [dishes, query, category]
   );
   const count = itemCount;
@@ -265,6 +278,8 @@ export default function Home() {
     name: dish.name,
     description: dish.desc,
     price: dish.price,
+    promo_price: dish.promo_price,
+    promo_active: dish.promo_active,
     image: dish.image,
     is_available: dish.available !== false,
     stock: dish.stock,
@@ -306,8 +321,9 @@ export default function Home() {
     if (!pending.current) {
       pending.current = { key: crypto.randomUUID(), body: JSON.stringify({
         customer,
+        expected_total_cents: cents(checkoutTotal),
         items: items.map(item => ({
-          id: item.dish.id, quantity: item.qty,
+          id: item.dish.id, quantity: item.qty, expected_unit_cents: cents(item.unitPrice),
           type: beverages.some(drink => keyOf(drink.id) === keyOf(item.dish.id)) ? 'beverage' : 'dish',
           addons: item.selectedAddons, notes: item.notes,
         })),
@@ -318,7 +334,7 @@ export default function Home() {
     setSubmitting(true);
     setCheckoutError('');
     try {
-      const response = await fetch('/api/orders', {
+      const response = await fetch('/api/orders/v2', {
         method: 'POST', cache: 'no-store', signal: AbortSignal.timeout(20000),
         headers: { 'Content-Type': 'application/json', 'Idempotency-Key': pending.current.key },
         body: pending.current.body,
@@ -331,6 +347,10 @@ export default function Home() {
           pending.current = null;
           setRetryPending(false);
           try { sessionStorage.removeItem('tata-checkout-pending'); } catch { /* A tentativa permanece disponível nesta aba. */ }
+        }
+        if (saved.code === 'PRICE_CHANGED' && saved.quote?.items) {
+          applyQuote(saved.quote.items);
+          deliveryZones.refresh();
         }
         if (/^DELIVERY_ZONE_/.test(saved.code || '')) {
           setField('delivery_zone_id', '');
@@ -470,6 +490,13 @@ export default function Home() {
           </div>
         </div>
 
+        {!query.trim() && category === 'Todos' && dishes.some(hasPromotion) && <section className="offers-section" aria-labelledby="offers-heading">
+          <h2 id="offers-heading">Ofertas da Comedoria</h2>
+          <div className="offers-grid">{dishes.filter(hasPromotion).map(dish => <article className="offer-card" key={dish.id}>
+            <Link href={`/dishes/${dish.slug || dish.id}`}><b>{dish.name}</b><DishPrice dish={dish} /></Link>
+            <button type="button" disabled={dish.available === false || Number(dish.stock ?? 1) < 1} onClick={() => changeQuantity(dish, 1)}>{dish.available === false || Number(dish.stock ?? 1) < 1 ? 'Esgotado' : 'Adicionar'}</button>
+          </article>)}</div>
+        </section>}
         {filtered.length ? (
           <div className="dish-grid">
             {filtered.map((dish) => {
@@ -492,14 +519,14 @@ export default function Home() {
                   )}
                   <div className="dish-photo">
                     <img src={dish.image} alt={dish.name} loading="lazy" />
-                    <span>{unavailable ? 'Esgotado' : dish.tag}</span>
+                    <span>{unavailable ? 'Esgotado' : hasPromotion(dish) ? 'OFERTA' : dish.tag}</span>
                   </div>
                   <div className="dish-info">
-                    <small>{dish.cat}</small>
+                    <small>{dish.cat}{dish.is_new && dish.popular ? ' · Novo · Mais pedido' : hasPromotion(dish) && dish.tag !== 'Da casa' ? ` · ${dish.tag}` : ''}</small>
                     <h3>{dish.name}</h3>
                     <p>{dish.desc}</p>
                     <footer>
-                      <strong>{money(dish.price)}</strong>
+                      <DishPrice dish={dish} />
                       {quantity > 0 ? (
                         <div className="stepper">
                           <button
@@ -654,7 +681,7 @@ export default function Home() {
 
       {cartOpen && (
         <div className="overlay">
-          <aside role="dialog" aria-modal="true" aria-label="Sua sacola">
+          <aside role="dialog" tabIndex={-1} aria-modal="true" aria-label="Sua sacola">
             <button className="close" onClick={() => setCartOpen(false)} aria-label="Fechar sacola">
               ×
             </button>
@@ -727,7 +754,7 @@ export default function Home() {
       )}
       {receipt && receiptVisible && (
         <div className="overlay checkout-overlay">
-          <aside role="dialog" aria-modal="true" aria-label="Confirmação do pedido">
+          <aside role="dialog" tabIndex={-1} aria-modal="true" aria-label="Confirmação do pedido">
             <OrderConfirmation order={receipt} />
             <button type="button" className="back" onClick={() => setReceiptVisible(false)}>Voltar ao cardápio</button>
           </aside>
@@ -735,7 +762,7 @@ export default function Home() {
       )}
       {checkoutOpen && !(receipt && receiptVisible) && (
         <div className="overlay checkout-overlay">
-          <aside role="dialog" aria-modal="true" aria-label="Finalizar pedido">
+          <aside role="dialog" tabIndex={-1} aria-modal="true" aria-label="Finalizar pedido">
             <button
               className="close"
               onClick={() => setCheckoutOpen(false)}
@@ -926,6 +953,7 @@ export default function Home() {
                   placeholder="Ex.: retirar cebola, chamar no portão..."
                 />
               </label>
+              <div className="checkout-items" aria-live="polite">{items.map(item => <p key={item.id}>{item.qty}× {item.dish.name} <b>{money(cents(item.unitPrice) * item.qty / 100)}</b></p>)}</div>
               {customer.delivery === 'delivery' && (
                 <div className="checkout-breakdown" aria-live="polite">
                   <div><span>Produtos</span><b>{money(total)}</b></div>

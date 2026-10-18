@@ -7,19 +7,19 @@ export function toast(message: string, opts?: { type?: 'success' | 'error' | 'in
   el.setAttribute('role', 'status');
   el.style.position = 'fixed';
   el.style.right = '16px';
-  el.style.bottom = '16px';
+  el.style.bottom = location.pathname.startsWith('/admin') ? 'calc(88px + env(safe-area-inset-bottom))' : '16px';
   el.style.zIndex = '9999';
   el.style.padding = '12px 16px';
   el.style.borderRadius = '8px';
   el.style.boxShadow = '0 6px 18px rgba(0,0,0,0.12)';
   el.style.color = '#fff';
   el.style.fontSize = '14px';
-  el.style.maxWidth = '320px';
-  el.style.transition = 'transform 240ms ease, opacity 240ms ease';
+  el.style.maxWidth = 'min(320px, calc(100vw - 32px))';
+  el.style.transition = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'none' : 'transform 240ms ease, opacity 240ms ease';
   el.style.transform = 'translateY(8px)';
   el.style.opacity = '0';
 
-  if (type === 'success') el.style.background = '#2d8f5a';
+  if (type === 'success') el.style.background = '#166534';
   else if (type === 'error') el.style.background = '#c53030';
   else el.style.background = '#2b6cb0';
 

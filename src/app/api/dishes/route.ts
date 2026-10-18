@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { searchDishes, getDishes } from '@/lib/api';
 
-const CACHE_CONTROL = 'public, max-age=60, s-maxage=120, stale-while-revalidate=300';
+const CACHE_CONTROL = 'no-store';
 
 export async function GET(req: Request) {
   try {
