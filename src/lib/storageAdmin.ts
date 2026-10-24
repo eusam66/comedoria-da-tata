@@ -60,5 +60,12 @@ export async function removeStorageFileByPublicUrlIfUnreferenced(
     if (error || (data && data.length > 0)) return false;
   }
 
+  // Falha fechada também no schema antigo: nunca apagar sem verificar a galeria.
+  const gallery = await (supabaseAdmin as any)
+    .from('dishes')
+    .select('id')
+    .contains('gallery', JSON.stringify([{ url: publicUrl }]))
+    .limit(1);
+  if (gallery.error || gallery.data?.length) return false;
   return removeStorageFileByPublicUrl(publicUrl);
 }

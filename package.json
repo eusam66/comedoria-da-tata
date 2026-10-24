@@ -10,6 +10,7 @@
     "format": "prettier --write .",
     "db:create-buckets": "node scripts/create_buckets.js",
     "db:seed": "node scripts/seed.js",
+    "test:commercial": "node --test scripts/etapa-c.test.cjs",
     "test:compatibility": "node --test scripts/rpc-compatibility.test.cjs",
     "test:promotions": "node --experimental-strip-types --test src/lib/pricing.test.ts scripts/promotions-routes.test.cjs",
     "test:hours": "node --experimental-strip-types --test src/lib/storeHours.test.ts",
@@ -17,23 +18,38 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.28.0",
-    "next": "^15.0.0",
+    "next": "15.5.28",
+    "qrcode": "1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^20.0.0",
+    "@types/qrcode": "1.5.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.0.0",
     "eslint": "^8.0.0",
-    "eslint-config-next": "15.5.22",
+    "eslint-config-next": "15.5.28",
+    "jsqr": "1.4.0",
     "postcss": "^8.0.0",
     "prettier": "^2.0.0",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.0.0"
+  },
+  "overrides": {
+    "next": {
+      "sharp": "0.35.5",
+      "postcss": "8.5.23"
+    },
+    "nanoid@3": "3.3.18",
+    "source-map-js@1": "1.2.2",
+    "js-yaml@4": "4.3.2",
+    "brace-expansion@1": "1.1.21"
+  },
+  "engines": {
+    "node": ">=20.9.0"
   }
 }
-

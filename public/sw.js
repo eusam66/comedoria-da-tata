@@ -1,6 +1,6 @@
 // Worker mantido manualmente. O build atual não usa next-pwa/Workbox.
 // Atualize a versão ao mudar a estratégia ou o shell offline.
-const CACHE = 'tata-public-v2';
+const CACHE = 'tata-public-v3';
 const LEGACY_CACHES = /^(workbox-|start-url$|google-fonts-|static-|next-|others$|cross-origin$|apis$)/;
 
 self.addEventListener('install', () => self.skipWaiting());
