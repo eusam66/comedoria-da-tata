@@ -79,7 +79,7 @@ async function main() {
     const zones = (await api('/api/delivery-zones')).json; const zone = zones.find(z => z.name === 'HOMOLOGAÇÃO Zona A'); assert.ok(zone);
     await patchDish(dish.id, { promo_active: true });
     assert.equal((await api('/api/admin/order-operations', 'PUT', { mode: 'open' })).status, 200);
-    if (!process.argv.includes('--ui-only')) {
+    if (!process.argv.includes('--ui-only') && !process.argv.includes('--navigation-only')) {
     for (const promo_price of [0, -1, 59.9, 60, 'NaN', null]) {
       assert.equal((await api(`/api/admin/dishes/${dish.id}`, 'PATCH', { promo_active: true, promo_price })).status, 400);
     }
@@ -164,7 +164,7 @@ async function main() {
             assert.equal(Number(await page.getByLabel('Preço promocional (R$)', { exact: true }).inputValue()), 48.9);
             assert.ok((await heading.innerText()).startsWith('EDITANDO:'));
             await context.unroute(`${BASE}/api/admin/dishes/${dish.id}`, failure);
-            await page.locator('input[type="file"]').setInputFiles({ name: 'homologacao-promo.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z1C8AAAAASUVORK5CYII=', 'base64') });
+            await page.locator('input[type="file"]').first().setInputFiles({ name: 'homologacao-promo.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z1C8AAAAASUVORK5CYII=', 'base64') });
           }
           await page.getByRole('button', { name: 'Salvar alterações', exact: true }).click();
           await page.waitForFunction(id => document.activeElement?.getAttribute('data-admin-item') === id, record.id);
@@ -248,6 +248,11 @@ async function main() {
         await page.getByRole('heading', { name: 'Categorias da loja' }).waitFor();
         assert.equal(await page.locator('.admin-mobile-nav [aria-current="page"]').getAttribute('href'), '/admin/categories');
         assert.ok((await page.locator('.admin-mobile-nav summary').getAttribute('class')).includes('admin-nav-active'));
+      }
+      if(process.argv.includes('--navigation-only')) {
+        assert.equal(errors.length,0,errors.join('; '));await context.close();
+        pass(`Navegação administrativa ${viewport.width}: editores, foco, retorno, numéricos, estoque fictício, filtros, dashboard, pedidos, configurações, taxas e barra mobile`);
+        continue;
       }
       await page.goto(BASE);
       await page.getByRole('heading', { name: 'Ofertas da Comedoria' }).waitFor();

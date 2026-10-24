@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
+const sharp=require('sharp');
 const { chromium } = require('playwright');
 
 async function main() {
@@ -14,6 +15,7 @@ async function main() {
       const old = await caches.open('apis');
       await old.put('/api/store-status', new Response('{"isOpen":true}'));
       await caches.open('workbox-precache-old');
+      await caches.open('tata-public-v2');
       const registration = await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
       await navigator.serviceWorker.ready;
       const worker = registration.installing || registration.waiting || registration.active;
@@ -24,6 +26,8 @@ async function main() {
     const cachesAfter = await page.evaluate(() => caches.keys());
     assert.ok(!cachesAfter.includes('apis'));
     assert.ok(!cachesAfter.includes('workbox-precache-old'));
+    assert.ok(!cachesAfter.includes('tata-public-v2'));
+    for(const size of [192,512]){const icon=await page.request.get('http://localhost:3000/icons/icon-'+size+'.png');assert.equal(icon.status(),200);const metadata=await sharp(await icon.body()).metadata();assert.equal(metadata.format,'png');assert.equal(metadata.width,size);assert.equal(metadata.height,size);}
     const online = await page.evaluate(async () => {
       const response = await fetch('/icons/icon-192.png');
       return response.status;

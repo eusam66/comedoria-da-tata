@@ -8,7 +8,7 @@ function worker(fetch = async () => new Response('fresh'), cacheUnavailable = fa
   const entries = new Map();
   const removed = [];
   const context = { URL, Response, fetch, caches: {
-    keys: async () => ['workbox-precache-old', 'apis', 'tata-public-v1', 'unrelated-app'],
+    keys: async () => ['workbox-precache-old', 'apis', 'tata-public-v1', 'tata-public-v2', 'unrelated-app'],
     delete: async name => removed.push(name),
     open: async () => { if (cacheUnavailable) throw new Error('quota'); return ({ put: async (r, v) => entries.set(r.url, v),
       match: async r => entries.get(r.url), keys: async () => [], delete: async () => {} }); },
@@ -35,7 +35,7 @@ test('atualização limpa caches antigos sem apagar caches de outras aplicaçõe
   let done;
   w.events.activate({ waitUntil: p => { done = p; } });
   await done;
-  assert.deepEqual(w.removed, ['workbox-precache-old', 'apis', 'tata-public-v1']);
+  assert.deepEqual(w.removed, ['workbox-precache-old', 'apis', 'tata-public-v1', 'tata-public-v2']);
 });
 test('shell e assets funcionam offline após visita online; sem cache não inventa sucesso', async () => {
   let offline = false;

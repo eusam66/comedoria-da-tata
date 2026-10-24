@@ -1,42 +1,52 @@
-// Client-side image compression helper — uses canvas to resize and compress images
-export async function compressImage(file: File, maxWidth = 1200, quality = 0.8): Promise<File> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const ratio = img.width / img.height;
-        let w = img.width;
-        let h = img.height;
-        if (w > maxWidth) {
-          w = maxWidth;
-          h = Math.round(w / ratio);
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('Canvas not supported');
-        ctx.drawImage(img, 0, 0, w, h);
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) return reject(new Error('Compression failed'));
-            const newFile = new File([blob], file.name, { type: blob.type });
-            resolve(newFile);
-          },
-          'image/jpeg',
-          quality
-        );
-      } catch (err) {
-        reject(err);
-      } finally {
-        URL.revokeObjectURL(url);
-      }
-    };
-    img.onerror = (e) => {
-      URL.revokeObjectURL(url);
-      reject(e);
-    };
-    img.src = url;
-  });
+import { validateSourceImage } from './imageUpload';
+// Decodificação moderna respeita EXIF; canvas elimina metadata e limita ambos os eixos.
+export async function compressImage(file: File, maxWidth = 1600, quality = 0.8): Promise<File> {
+  validateSourceImage(file);
+  let image: ImageBitmap | HTMLImageElement;
+  let sourceUrl: string | undefined;
+  if (typeof createImageBitmap === 'function') {
+    try {
+      image = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    } catch {
+      image = await fallback();
+    }
+  } else image = await fallback();
+  async function fallback(): Promise<HTMLImageElement> {
+    sourceUrl = URL.createObjectURL(file);
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => {
+        URL.revokeObjectURL(sourceUrl!);
+        reject(new Error('Não foi possível ler a imagem.'));
+      };
+      img.src = sourceUrl!;
+    });
+  }
+  try {
+    const w = image.width,
+      h = image.height;
+    if (!w || !h || w * h > 60000000)
+      throw new Error('Dimensões da imagem inválidas ou muito grandes.');
+    const ratio = Math.min(1, maxWidth / w, maxWidth / h);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w * ratio));
+    canvas.height = Math.max(1, Math.round(h * ratio));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas indisponível.');
+    context.fillStyle = '#FFF9F3';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error('Não foi possível comprimir a imagem.'))),
+        'image/jpeg',
+        quality
+      )
+    );
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } finally {
+    if (sourceUrl) URL.revokeObjectURL(sourceUrl);
+    if ('close' in image) image.close();
+  }
 }

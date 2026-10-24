@@ -6,6 +6,8 @@ import { pricingError, discountPercent, hasPromotion, money, cents } from '../..
 import DishPrice from '../../../components/DishPrice';
 import React, { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
+import AdminDishGallery, { type GalleryDraft } from '@/components/AdminDishGallery';
+import { dishPhotos } from '@/lib/dishMedia';
 import { slugify } from '../../../lib/slug';
 import { compressImage } from '../../../lib/imageCompress';
 import { toastSuccess, toastError } from '../../../lib/toast';
@@ -19,6 +21,22 @@ type AddonDraft = Omit<DishAddon, 'price' | 'maxQty'> & { price: number | ''; ma
 export default function AdminDishesPage() {
   const [items, setItems] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [beverages, setBeverages] = useState<any[]>([]);
+  const [gallery, setGallery] = useState<GalleryDraft[]>([]);
+  const uploaded = useRef(new Map<File, string>());
+  const galleryBaseline = useRef('[]');
+  const uploadKeys = useRef(new WeakMap<File, string>());
+  const gallerySnapshot = (rows: GalleryDraft[]) =>
+    JSON.stringify(
+      rows.map((p) => ({
+        key: p.key,
+        url: p.url,
+        alt: p.alt,
+        file: p.file?.name,
+        size: p.file?.size,
+        lastModified: p.file?.lastModified,
+      }))
+    );
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<any>({
     code: '',
@@ -30,6 +48,9 @@ export default function AdminDishesPage() {
     slug: '',
     description: '',
     ingredients: '',
+    accompaniments: '',
+    dish_notes: '',
+    related_products: [],
     servings: 1,
     position: 0,
     stock: 1,
@@ -37,15 +58,17 @@ export default function AdminDishesPage() {
     isNew: false,
     addons: [] as AddonDraft[],
   });
-  const [fileInputKey, setFileInputKey] = useState(0);
-  const [file, setFile] = useState<File | null>(null);
-  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
-  const [removeCurrentImage, setRemoveCurrentImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const originalStock = useRef(0);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const editor = useAdminEditor(editingId, JSON.stringify([form, file?.name, removeCurrentImage]));
+  const editor = useAdminEditor(
+    editingId,
+    JSON.stringify([
+      form,
+      gallery.map((p) => ({ key: p.key, url: p.url, name: p.file?.name, alt: p.alt })),
+    ])
+  );
   const [query, setQuery] = useAdminListContext('admin-dishes-query', '');
   const [filter, setFilter] = useAdminListContext('admin-dishes-filter', 'all');
   const pricing = {
@@ -103,31 +126,59 @@ export default function AdminDishesPage() {
     Promise.all([
       adminFetch<any[]>('/api/admin/dishes'),
       adminFetch<any[]>('/api/admin/categories'),
+      adminFetch<any[]>('/api/admin/beverages'),
     ])
-      .then(([dishes, categories]) => {
+      .then(([dishes, categories, drinks]) => {
         setItems(dishes || []);
         setCategories(categories || []);
+        setBeverages(drinks || []);
       })
       .catch((e) => setError(e.message || 'Erro'))
       .finally(() => setLoading(false));
   }, []);
 
-  async function uploadIfNeeded(): Promise<string | null> {
-    if (!file) return null;
-    try {
-      const compressed = await compressImage(file, 1200, 0.78);
-      const fd = new FormData();
-      fd.append('file', compressed);
-      fd.append('bucket', 'dishes');
-      fd.append('path', `dishes/${Date.now()}_${compressed.name}`);
-      const json = await adminFetch<{ publicUrl: string }>('/api/upload', {
-        method: 'POST',
-        body: fd,
-      });
-      return json.publicUrl;
-    } catch (err: any) {
-      throw new Error(err?.message || 'Upload/compress failed');
+  async function cleanupUploads() {
+    for (const [file, url] of uploaded.current) {
+      try {
+        await adminFetch('/api/upload', {
+          method: 'DELETE',
+          body: JSON.stringify({ publicUrl: url }),
+        });
+        uploaded.current.delete(file);
+      } catch {
+        /* Conserva o arquivo para nova tentativa de limpeza; nunca apaga sem verificar referências. */
+      }
     }
+  }
+  async function prepareGallery() {
+    const photos = [];
+    for (const photo of gallery) {
+      let url = photo.url;
+      if (photo.file) {
+        url = uploaded.current.get(photo.file);
+        if (!url) {
+          const compressed = await compressImage(photo.file, 1600, 0.8);
+          const body = new FormData();
+          body.append('file', compressed);
+          body.append('bucket', 'dishes');
+          body.append('deduplicate', 'true');
+          let uploadKey = uploadKeys.current.get(photo.file);
+          if (!uploadKey) {
+            uploadKey = crypto.randomUUID();
+            uploadKeys.current.set(photo.file, uploadKey);
+          }
+          body.append('uploadKey', uploadKey);
+          const saved = await adminFetch<{ publicUrl: string }>('/api/upload', {
+            method: 'POST',
+            body,
+          });
+          url = saved.publicUrl;
+          uploaded.current.set(photo.file, url);
+        }
+      }
+      if (url) photos.push({ url, alt: photo.alt || form.name });
+    }
+    return photos;
   }
 
   function resetForm() {
@@ -141,6 +192,9 @@ export default function AdminDishesPage() {
       slug: '',
       description: '',
       ingredients: '',
+      accompaniments: '',
+      dish_notes: '',
+      related_products: [],
       servings: 1,
       position: 0,
       stock: 1,
@@ -148,10 +202,9 @@ export default function AdminDishesPage() {
       isNew: false,
       addons: [] as AddonDraft[],
     });
-    setFile(null);
-    setFileInputKey((key) => key + 1);
-    setCurrentImageUrl(null);
-    setRemoveCurrentImage(false);
+    setGallery([]);
+    galleryBaseline.current = '[]';
+    void cleanupUploads();
     setEditingId(null);
     setError(null);
   }
@@ -172,6 +225,9 @@ export default function AdminDishesPage() {
       slug: dish.slug || '',
       description: dish.description || '',
       ingredients: typeof dish.ingredients === 'string' ? dish.ingredients : '',
+      accompaniments: dish.accompaniments || '',
+      dish_notes: dish.dish_notes || '',
+      related_products: dish.related_products || [],
       servings: dish.servings || dish.serves || 1,
       position: Number(dish.position || 0),
       stock: Number(dish.stock ?? (dish.is_available === false ? 0 : 1)),
@@ -179,10 +235,12 @@ export default function AdminDishesPage() {
       isNew: dish.is_new || false,
       addons,
     });
-    setFile(null);
-    setFileInputKey((key) => key + 1);
-    setCurrentImageUrl(dish.image_url || dish.image || null);
-    setRemoveCurrentImage(false);
+    const photos = dishPhotos(dish.gallery, dish.image_url || dish.image, dish.name).map(
+      (p, i) => ({ ...p, key: `${dish.id}-${i}` })
+    );
+    setGallery(photos);
+    galleryBaseline.current = gallerySnapshot(photos);
+    void cleanupUploads();
   }
 
   function addAddonRow() {
@@ -215,7 +273,7 @@ export default function AdminDishesPage() {
     setError(null);
     try {
       validateDraft();
-      const imageUrl = await uploadIfNeeded();
+      const photos = await prepareGallery();
       const normalizedAddons = normalizeDishAddons(form.addons || []);
       const payload: any = {
         ...form,
@@ -229,7 +287,8 @@ export default function AdminDishesPage() {
         categoryId: form.categoryId || null,
         extras: normalizedAddons.length > 0 ? serializeDishAddons(normalizedAddons) : null,
       };
-      if (imageUrl) payload.image = imageUrl;
+      payload.gallery = photos;
+      payload.image = photos[0]?.url || null;
       const json = await adminFetch<any>('/api/admin/dishes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -250,7 +309,8 @@ export default function AdminDishesPage() {
     setError(null);
     try {
       validateDraft();
-      const imageUrl = await uploadIfNeeded();
+      const galleryChanged = gallerySnapshot(gallery) !== galleryBaseline.current;
+      const photos = galleryChanged ? await prepareGallery() : null;
       const normalizedAddons = normalizeDishAddons(form.addons || []);
       const payload: any = {
         ...form,
@@ -265,8 +325,11 @@ export default function AdminDishesPage() {
         extras: normalizedAddons.length > 0 ? serializeDishAddons(normalizedAddons) : null,
       };
       if (form.stock === originalStock.current) delete payload.stock;
-      if (imageUrl) payload.image = imageUrl;
-      if (!imageUrl && removeCurrentImage) payload.image = null;
+      if (photos) {
+        payload.gallery = photos;
+        payload.image = photos[0]?.url || null;
+      }
+
       const json = await adminFetch<any>(`/api/admin/dishes/${editingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -399,7 +462,15 @@ export default function AdminDishesPage() {
                   placeholder="Ex.: 39,99"
                   className="border p-3 rounded w-full"
                 />
-                {form.price === '' && <span id="dish-price-validation" role="alert" className="mt-1 block text-sm text-red-700">Informe o preço normal para salvar.</span>}
+                {form.price === '' && (
+                  <span
+                    id="dish-price-validation"
+                    role="alert"
+                    className="mt-1 block text-sm text-red-700"
+                  >
+                    Informe o preço normal para salvar.
+                  </span>
+                )}
               </AdminField>
               <AdminField label="Posição no cardápio" help="0 aparece antes de 1, 1 antes de 2...">
                 <input
@@ -534,51 +605,84 @@ export default function AdminDishesPage() {
                 </select>
               </AdminField>
               <AdminField
-                label="Imagem do prato"
-                help="Foto principal exibida no cardápio. Prefira uma imagem nítida e bem iluminada."
+                label="O que acompanha?"
+                help="Informe apenas acompanhamentos reais; opcional."
               >
-                <input
-                  key={fileInputKey}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    setFile(e.target.files?.[0] ?? null);
-                    setRemoveCurrentImage(false);
-                  }}
-                  className="w-full"
+                <textarea
+                  className="w-full rounded border p-3"
+                  maxLength={2000}
+                  value={form.accompaniments}
+                  onChange={(e) => setForm({ ...form, accompaniments: e.target.value })}
                 />
               </AdminField>
+              <AdminField
+                label="Observações do prato"
+                help="Informações públicas sobre preparo ou porção; opcional."
+              >
+                <textarea
+                  className="w-full rounded border p-3"
+                  maxLength={2000}
+                  value={form.dish_notes}
+                  onChange={(e) => setForm({ ...form, dish_notes: e.target.value })}
+                />
+              </AdminField>
+              <details className="rounded border p-3">
+                <summary>Produtos relacionados (até 6)</summary>
+                <p>Somente produtos disponíveis serão sugeridos no carrinho.</p>
+                {[
+                  ...items.filter((p) => p.id !== editingId).map((p) => ({ ...p, type: 'dish' })),
+                  ...beverages.map((p) => ({ ...p, type: 'beverage' })),
+                ].map((p) => {
+                  const selected = form.related_products.some(
+                    (r: any) => r.id === p.id && r.type === p.type
+                  );
+                  return (
+                    <label key={p.id} className="flex min-h-11 items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        disabled={!selected && form.related_products.length >= 6}
+                        onChange={() =>
+                          setForm({
+                            ...form,
+                            related_products: selected
+                              ? form.related_products.filter((r: any) => r.id !== p.id)
+                              : [...form.related_products, { id: p.id, type: p.type }],
+                          })
+                        }
+                      />
+                      {p.name}
+                      {p.type === 'beverage' ? ' · bebida' : ''}
+                    </label>
+                  );
+                })}
+                {form.related_products
+                  .filter(
+                    (r: any) =>
+                      !(r.type === 'beverage' ? beverages : items).some((p: any) => p.id === r.id)
+                  )
+                  .map((r: any) => (
+                    <p key={r.id} className="mt-2">
+                      <span>Relação com produto removido do catálogo.</span>
+                      <button
+                        type="button"
+                        className="ml-2 min-h-11 rounded border p-2"
+                        onClick={() =>
+                          setForm({
+                            ...form,
+                            related_products: form.related_products.filter(
+                              (p: any) => p.id !== r.id
+                            ),
+                          })
+                        }
+                      >
+                        Remover relação indisponível
+                      </button>
+                    </p>
+                  ))}
+              </details>
+              <AdminDishGallery value={gallery} onChange={setGallery} />
             </div>
-            {(currentImageUrl || file) && (
-              <div className="rounded-lg border p-3">
-                <div className="mb-2 text-sm font-semibold">Imagem atual</div>
-                {currentImageUrl && !file && (
-                  <Image
-                    src={currentImageUrl}
-                    alt={form.name || 'Prato'}
-                    width={640}
-                    height={320}
-                    className="h-40 w-full rounded object-cover"
-                    unoptimized
-                  />
-                )}
-                {file && <div className="text-sm text-gray-600">{file.name}</div>}
-                {editingId && currentImageUrl && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCurrentImageUrl(null);
-                      setFile(null);
-                      setFileInputKey((key) => key + 1);
-                      setRemoveCurrentImage(true);
-                    }}
-                    className="mt-3 rounded border border-red-200 px-3 py-2 text-sm text-red-600"
-                  >
-                    Excluir foto atual
-                  </button>
-                )}
-              </div>
-            )}
             <section className="rounded-lg border p-3" aria-labelledby="dish-promo-heading">
               <h3 id="dish-promo-heading" className="font-semibold">
                 PROMOÇÃO DO PRATO
@@ -771,10 +875,15 @@ export default function AdminDishesPage() {
                 para carregar os detalhes e atualizar preço, categoria, status e imagem.
               </div>
             </div>
-            {file && (
+            {gallery.some((p) => p.file) && (
               <div className="bg-white p-4 rounded shadow">
                 <div className="font-semibold mb-2">Nova imagem selecionada</div>
-                <div className="text-sm text-gray-600">{file.name}</div>
+                <div className="text-sm text-gray-600">
+                  {gallery
+                    .filter((p) => p.file)
+                    .map((p) => p.file!.name)
+                    .join(', ')}
+                </div>
               </div>
             )}
             {editingId && (

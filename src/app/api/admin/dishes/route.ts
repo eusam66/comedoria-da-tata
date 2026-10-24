@@ -6,9 +6,18 @@ export async function GET(req: Request) {
     await (await import('@/lib/adminAuthSafe')).requireAdmin(req);
     const list = await adminApi.adminListDishes();
     return NextResponse.json(list);
-  } catch (err:any) {
+  } catch (err: any) {
     console.error('admin GET dishes', err);
-    const status = err.message === 'Forbidden' ? 403 : err.message === 'Unauthorized' ? 401 : /preço|promocional|promoção/i.test(err.message) || err.code === '23514' ? 400 : 500;
+    const status =
+      err.message === 'Forbidden'
+        ? 403
+        : err.message === 'Unauthorized'
+        ? 401
+        : /preço|promocional|promoção|galeria|imagem|relacionad|caracter|informação/i.test(
+            err.message
+          ) || err.code === '23514'
+        ? 400
+        : 500;
     return NextResponse.json({ error: err.message }, { status });
   }
 }
@@ -19,9 +28,18 @@ export async function POST(req: Request) {
     const body = await req.json();
     const created = await adminApi.adminCreateDish(body);
     return NextResponse.json(created);
-  } catch (err:any) {
+  } catch (err: any) {
     console.error('admin POST dishes', err);
-    const status = err.message === 'Forbidden' ? 403 : err.message === 'Unauthorized' ? 401 : /preço|promocional|promoção/i.test(err.message) || err.code === '23514' ? 400 : 500;
+    const status =
+      err.message === 'Forbidden'
+        ? 403
+        : err.message === 'Unauthorized'
+        ? 401
+        : /preço|promocional|promoção|galeria|imagem|relacionad|caracter|informação/i.test(
+            err.message
+          ) || err.code === '23514'
+        ? 400
+        : 500;
     return NextResponse.json({ error: err.message }, { status });
   }
 }

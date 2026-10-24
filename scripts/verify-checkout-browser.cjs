@@ -35,6 +35,7 @@ async function main() {
       return route.continue();
     });
     await page.goto('http://localhost:3000');
+    await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
     await page.locator('article').filter({ hasText: 'HOMOLOGAÇÃO Prato' }).locator('.add-button').click();
     await page.locator('.header-cart').click();
     await page.getByRole('dialog', { name: 'Sua sacola' }).screenshot({ path: `artifacts/cart-${viewport.width}.png` });

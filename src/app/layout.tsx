@@ -1,16 +1,25 @@
-import "../styles/globals.css";
+import '../styles/globals.css';
+import './commercial.css';
 import React from 'react';
+import { siteUrl as getSiteUrl } from '@/lib/seo';
 import ClientProviders from '../components/ClientProviders';
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+const siteUrl = getSiteUrl();
 
 export const metadata = {
-  title: 'Comedoria da Tata',
-  description: 'Comida caseira com carinho e entrega rápida diretamente da cozinha da Tata.',
+  title: 'Comedoria da Tata — comida caseira em Chã Grande, PE',
+  description:
+    'Comida caseira e nordestina em Chã Grande, Pernambuco. Confira pratos, ofertas e condições de entrega e retirada no cardápio online.',
+  alternates: { canonical: siteUrl },
+  robots: {
+    index: process.env.NEXT_PUBLIC_APP_ENV !== 'homologacao',
+    follow: process.env.NEXT_PUBLIC_APP_ENV !== 'homologacao',
+  },
   metadataBase: new URL(siteUrl),
   openGraph: {
     title: 'Comedoria da Tata',
-    description: 'Comida caseira com carinho e entrega rápida diretamente da cozinha da Tata.',
+    description:
+      'Comida caseira e nordestina em Chã Grande, Pernambuco. Confira pratos, ofertas e condições de entrega e retirada no cardápio online.',
     type: 'website',
     url: siteUrl,
     images: [
@@ -18,23 +27,24 @@ export const metadata = {
         url: '/icons/icon-512.png',
         width: 512,
         height: 512,
-        alt: 'Comedoria da Tata'
-      }
-    ]
+        alt: 'Comedoria da Tata',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Comedoria da Tata',
-    description: 'Comida caseira com carinho e entrega rápida diretamente da cozinha da Tata.',
-    images: ['/icons/icon-512.png']
-  }
+    description:
+      'Comida caseira e nordestina em Chã Grande, Pernambuco. Confira pratos, ofertas e condições de entrega e retirada no cardápio online.',
+    images: ['/icons/icon-512.png'],
+  },
 };
 
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover' as const,
-  themeColor: '#2A140F'
+  themeColor: '#2A140F',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

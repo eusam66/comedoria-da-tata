@@ -4,6 +4,7 @@ import { toastSuccess, toastError } from '../../../lib/toast';
 import { adminFetch } from '../../../lib/adminFetch';
 import AdminField from '../../../components/AdminField';
 import OrderOperations from '@/components/OrderOperations';
+import CommercialSettingsEditor from '@/components/CommercialSettingsEditor';
 import DeliveryZonesSettings from '@/components/DeliveryZonesSettings';
 
 type StoreSettingsForm = {
@@ -195,7 +196,7 @@ export default function AdminSettings() {
         {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
       </div>
       <DeliveryZonesSettings />
+      <CommercialSettingsEditor />
     </>
   );
 }
-

@@ -3,18 +3,19 @@
 import DishPrice from './DishPrice';
 import { cents, effectivePrice } from '../lib/pricing';
 import React, { useMemo, useState } from 'react';
-import Image from 'next/image';
+import DishGallery from './DishGallery';
+import ShareDish from './ShareDish';
+import { dishPhotos } from '@/lib/dishMedia';
 import { useRouter } from 'next/navigation';
 import { Dish } from '../lib/api';
 import { DishAddon, normalizeDishAddons, SelectedAddon, selectedAddonsTotal } from '../lib/addons';
-import { toastError, toastSuccess } from '../lib/toast';
+import { toastSuccess } from '../lib/toast';
 import { useCart } from './CartContext';
 
 export default function DishDetailClient({ dish }: { dish: Dish }) {
   const router = useRouter();
   const { addItem } = useCart();
   const [qty, setQty] = useState(1);
-  const [sharing, setSharing] = useState(false);
   const addons = useMemo<DishAddon[]>(() => normalizeDishAddons(dish.addons), [dish.addons]);
   const [addonQtyMap, setAddonQtyMap] = useState<Record<string, number>>(() =>
     addons.reduce((current, addon) => ({ ...current, [addon.id]: addon.required ? 1 : 0 }), {})
@@ -33,7 +34,8 @@ export default function DishDetailClient({ dish }: { dish: Dish }) {
     [addons, addonQtyMap]
   );
 
-  const total = (cents(effectivePrice(dish)) + cents(selectedAddonsTotal(selectedAddons))) * qty / 100;
+  const total =
+    ((cents(effectivePrice(dish)) + cents(selectedAddonsTotal(selectedAddons))) * qty) / 100;
   const unavailable = dish.isAvailable === false || Number(dish.stock ?? 1) < 1;
 
   function changeAddonQty(addon: DishAddon, nextQty: number) {
@@ -50,54 +52,10 @@ export default function DishDetailClient({ dish }: { dish: Dish }) {
     toastSuccess(`${qty}x ${dish.name} adicionado à sacola.`);
   }
 
-  async function handleShare() {
-    const url = window.location.href;
-    const shareData = {
-      title: dish.name,
-      text: dish.description || `Veja ${dish.name} na Comedoria da Tata`,
-      url,
-    };
-
-    setSharing(true);
-    try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-      } else {
-        await navigator.clipboard.writeText(url);
-        toastSuccess('Link do prato copiado!');
-      }
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      try {
-        await navigator.clipboard.writeText(url);
-        toastSuccess('Link do prato copiado!');
-      } catch {
-        toastError('Não foi possível compartilhar o prato.');
-      }
-    } finally {
-      setSharing(false);
-    }
-  }
-
   return (
     <article className="mx-auto grid max-w-5xl overflow-hidden rounded-[2rem] border border-brand-brown/10 bg-white shadow-[0_24px_70px_-38px_rgba(42,20,15,0.5)] lg:grid-cols-2">
       <div className="relative">
-        {dish.image ? (
-          <div className="relative aspect-[4/3] w-full bg-brand-beige sm:aspect-[16/10] lg:aspect-auto lg:h-full lg:min-h-[42rem]">
-            <Image
-              src={dish.image}
-              alt={dish.name}
-              fill
-              priority
-              sizes="(max-width: 1024px) 100vw, 50vw"
-              className="object-cover"
-            />
-          </div>
-        ) : (
-          <div className="flex aspect-[4/3] items-center justify-center bg-brand-beige text-sm font-semibold text-brand-brown">
-            Imagem indisponível
-          </div>
-        )}
+        <DishGallery photos={dishPhotos(dish.gallery, dish.image, dish.name)} name={dish.name} />
 
         <button
           type="button"
@@ -142,7 +100,7 @@ export default function DishDetailClient({ dish }: { dish: Dish }) {
           {dish.servings != null && (
             <div className="text-right">
               <p className="text-xs font-semibold uppercase tracking-wider text-brand-brown/60">
-                Serve
+                Serve quantas pessoas?
               </p>
               <p className="mt-1 font-semibold text-brand-dark">
                 {dish.servings} {dish.servings === 1 ? 'pessoa' : 'pessoas'}
@@ -151,17 +109,18 @@ export default function DishDetailClient({ dish }: { dish: Dish }) {
           )}
         </div>
 
-        {typeof dish.ingredients === 'string' && dish.ingredients.trim().length > 0 && (
-          <section className="mt-6" aria-labelledby="acompanhamentos-title">
-            <h2
-              id="acompanhamentos-title"
-              className="text-sm font-bold uppercase tracking-wider text-brand-brown/70"
-            >
-              Acompanhamentos
-            </h2>
-            <p className="mt-2 leading-7 text-brand-dark">{dish.ingredients}</p>
-          </section>
-        )}
+        {[
+          ['O que acompanha?', dish.accompaniments],
+          ['Ingredientes', dish.ingredients],
+          ['Observações do prato', dish.dish_notes],
+        ]
+          .filter(([, content]) => typeof content === 'string' && content.trim())
+          .map(([title, content]) => (
+            <details key={title} className="dish-information">
+              <summary>{title}</summary>
+              <p>{content}</p>
+            </details>
+          ))}
 
         {addons.length > 0 && (
           <section className="mt-7" aria-labelledby="adicionais-title">
@@ -169,7 +128,7 @@ export default function DishDetailClient({ dish }: { dish: Dish }) {
               id="adicionais-title"
               className="text-sm font-bold uppercase tracking-wider text-brand-brown/70"
             >
-              Adicionais
+              Adicionais disponíveis
             </h2>
             <div className="mt-3 space-y-3">
               {addons.map((addon) => {
@@ -250,14 +209,7 @@ export default function DishDetailClient({ dish }: { dish: Dish }) {
           >
             {unavailable ? 'Esgotado' : `Adicionar à sacola · R$ ${total.toFixed(2)}`}
           </button>
-          <button
-            type="button"
-            onClick={handleShare}
-            disabled={sharing}
-            className="min-h-14 rounded-full border border-brand-brown/20 bg-white px-6 py-3 font-bold text-brand-brown transition hover:bg-brand-beige disabled:opacity-60"
-          >
-            {sharing ? 'Compartilhando…' : 'Compartilhar prato'}
-          </button>
+          <ShareDish name={dish.name} slug={dish.slug} description={dish.description} />
         </div>
       </div>
     </article>

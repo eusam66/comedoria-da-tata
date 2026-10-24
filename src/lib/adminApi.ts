@@ -1,10 +1,9 @@
+import { dishPhotos, validateGallery, validateRelated } from './dishMedia';
 import { pricingError } from './pricing';
 import supabaseAdmin from './supabaseAdmin';
 import { slugify } from './slug';
 import type { OrderFulfillment } from './deliveryZones';
-import {
-  removeStorageFileByPublicUrlIfUnreferenced,
-} from './storageAdmin';
+import { removeStorageFileByPublicUrlIfUnreferenced } from './storageAdmin';
 
 function adminClient(): any {
   if (!supabaseAdmin) {
@@ -115,10 +114,65 @@ export async function adminListDishes() {
   return data;
 }
 
+async function dishCommercialPatch(payload: any, current: any = {}, ownId?: string) {
+  const patch: any = {};
+  if (payload.gallery !== undefined) {
+    patch.gallery = validateGallery(payload.gallery);
+    const origin = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const existing = new Set(dishPhotos(current.gallery, current.image_url).map((p) => p.url));
+    for (const photo of patch.gallery) {
+      if (photo.url.startsWith('/') || existing.has(photo.url)) continue;
+      if (
+        !origin ||
+        new URL(photo.url).origin !== new URL(origin).origin ||
+        !new URL(photo.url).pathname.startsWith('/storage/v1/object/public/dishes/')
+      )
+        throw new Error('Imagem da galeria deve pertencer ao Storage da Comedoria.');
+    }
+    patch.image_url = patch.gallery[0]?.url || null;
+  }
+  if (payload.related_products !== undefined) {
+    patch.related_products = validateRelated(payload.related_products, ownId);
+    for (const type of ['dish', 'beverage']) {
+      const ids = patch.related_products.filter((p: any) => p.type === type).map((p: any) => p.id);
+      if (!ids.length) continue;
+      const { data, error } = await adminClient()
+        .from(type === 'dish' ? 'dishes' : 'beverages')
+        .select('id')
+        .in('id', ids);
+      if (error) throw error;
+      if (data?.length !== ids.length) throw new Error('Produto relacionado não encontrado.');
+    }
+  }
+  for (const key of ['accompaniments', 'dish_notes'])
+    if (payload[key] !== undefined) {
+      if (
+        (typeof payload[key] !== 'string' && payload[key] !== null) ||
+        payload[key]?.length > 2000
+      )
+        throw new Error('Informação do prato inválida: limite de 2000 caracteres.');
+      patch[key] = payload[key]?.trim() || null;
+    }
+  return patch;
+}
+async function cleanupDishImages(current: any, saved: any) {
+  const remaining = new Set(dishPhotos(saved?.gallery, saved?.image_url).map((p) => p.url));
+  for (const photo of dishPhotos(current?.gallery, current?.image_url))
+    if (!remaining.has(photo.url)) {
+      // O registro já foi confirmado. Falha de limpeza não deve anunciar falha de salvamento.
+      try {
+        await removeStorageFileByPublicUrlIfUnreferenced(photo.url);
+      } catch {
+        console.warn('Limpeza de imagem pendente; arquivo preservado.');
+      }
+    }
+}
+
 export async function adminCreateDish(payload: any) {
   const validation = pricingError(payload);
   if (validation) throw new Error(validation);
-  if (payload.promo_active !== undefined && typeof payload.promo_active !== 'boolean') throw new Error('Ativação de promoção inválida.');
+  if (payload.promo_active !== undefined && typeof payload.promo_active !== 'boolean')
+    throw new Error('Ativação de promoção inválida.');
   const id = crypto.randomUUID();
   const code = payload.code || `D-${Date.now()}`;
   const row = {
@@ -141,6 +195,7 @@ export async function adminCreateDish(payload: any) {
     is_available: Number(payload.stock || 0) >= 1,
     stock: Math.max(0, Math.trunc(Number(payload.stock || 0))),
     position: payload.position || 0,
+    ...(await dishCommercialPatch(payload)),
   };
   const { data, error } = await adminClient().from('dishes').insert([row]).select().single();
   if (error) throw error;
@@ -152,7 +207,8 @@ export async function adminUpdateDish(id: string, payload: any) {
   if (current.error) throw current.error;
   const validation = pricingError({ ...current.data, ...payload });
   if (validation) throw new Error(validation);
-  if (payload.promo_active !== undefined && typeof payload.promo_active !== 'boolean') throw new Error('Ativação de promoção inválida.');
+  if (payload.promo_active !== undefined && typeof payload.promo_active !== 'boolean')
+    throw new Error('Ativação de promoção inválida.');
   const patch: any = {};
   if (payload.promo_price !== undefined) patch.promo_price = payload.promo_price;
   if (payload.promo_active !== undefined) patch.promo_active = payload.promo_active;
@@ -174,6 +230,7 @@ export async function adminUpdateDish(id: string, payload: any) {
     patch.is_available = patch.stock >= 1;
   }
   if (payload.position !== undefined) patch.position = payload.position;
+  Object.assign(patch, await dishCommercialPatch(payload, current.data, id));
   const { data, error } = await adminClient()
     .from('dishes')
     .update(patch)
@@ -181,10 +238,7 @@ export async function adminUpdateDish(id: string, payload: any) {
     .select()
     .single();
   if (error) throw error;
-  const previousImage = current.data?.image_url || null;
-  if (payload.image !== undefined && previousImage && previousImage !== data.image_url) {
-    await removeStorageFileByPublicUrlIfUnreferenced(previousImage);
-  }
+  await cleanupDishImages(current.data, data);
   return data;
 }
 
@@ -193,7 +247,7 @@ export async function adminDeleteDish(id: string) {
   if (current.error) throw current.error;
   const { error } = await adminClient().from('dishes').delete().eq('id', id);
   if (error) throw error;
-  await removeStorageFileByPublicUrlIfUnreferenced(current.data?.image_url || null);
+  await cleanupDishImages(current.data, null);
   return true;
 }
 

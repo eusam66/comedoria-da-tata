@@ -1,3 +1,4 @@
+import type { DishPhoto, RelatedProduct } from './dishMedia';
 import type { OrderFulfillment } from './deliveryZones';
 // Tipos TypeScript para as tabelas Supabase
 
@@ -14,6 +15,11 @@ export type CategoryRow = {
 };
 
 export type DishRow = {
+  type?: 'dish' | 'beverage';
+  gallery?: DishPhoto[];
+  related_products?: RelatedProduct[];
+  accompaniments?: string | null;
+  dish_notes?: string | null;
   id: string;
   code?: string | null;
   name: string;

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { imageSignatureMatches } from '@/lib/imageUpload';
 import { NextResponse } from 'next/server';
 import supabaseAdmin from '@/lib/supabaseAdmin';
 import { removeStorageFileByPublicUrlIfUnreferenced } from '@/lib/storageAdmin';
@@ -58,17 +60,47 @@ export async function POST(req: Request) {
       );
     }
 
-    const path = safeObjectPath(bucket, file.name, folder);
-
-    await ensureBucketExists(bucket);
-
     const buffer = await file.arrayBuffer();
+    if (!imageSignatureMatches(file.type, new Uint8Array(buffer)))
+      return NextResponse.json(
+        { error: 'O conteúdo do arquivo não corresponde a uma imagem válida.' },
+        { status: 415 }
+      );
+    const extension = (
+      {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp',
+        'image/gif': 'gif',
+      } as Record<string, string>
+    )[file.type];
+    // Endereço pelo conteúdo somente para galerias: repetir após perda de rede
+    // reutiliza o mesmo arquivo; nunca sobrescreve um objeto existente.
+    const deduplicate = bucket === 'dishes' && form.get('deduplicate') === 'true';
+    const uploadKey = String(form.get('uploadKey') || '');
+    if (
+      deduplicate &&
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uploadKey)
+    )
+      return NextResponse.json({ error: 'Identificador de upload inválido.' }, { status: 400 });
+    const path = deduplicate
+      ? `uploads/dishes/${uploadKey}-${createHash('sha256')
+          .update(Buffer.from(buffer))
+          .digest('hex')}.${extension}`
+      : safeObjectPath(bucket, `image.${extension}`, folder);
+    await ensureBucketExists(bucket);
     const { error } = await supabaseAdmin.storage.from(bucket).upload(path, Buffer.from(buffer), {
       cacheControl: '31536000',
       contentType: file.type,
       upsert: false,
     });
-    if (error) {
+    const duplicate =
+      deduplicate &&
+      error &&
+      (String((error as any).statusCode) === '409' ||
+        (error as any).status === 409 ||
+        error.message === 'The resource already exists');
+    if (error && !duplicate) {
       console.error('upload error', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }

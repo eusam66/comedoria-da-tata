@@ -20,7 +20,7 @@ function adminSetup() {
   const query = { select: () => query, eq: () => query, maybeSingle: async () => ({ data: current }),
     insert: row => { writes.push(row); return query; }, update: row => { writes.push(row); return query; },
     single: async () => ({ data: { ...current, ...writes.at(-1) } }) };
-  const api = compile('src/lib/adminApi.ts', { './pricing': pricing, './orders': {}, './supabaseAdmin': { default: { from: () => query } }, './slug': {}, './storageAdmin': {} });
+  const api = compile('src/lib/adminApi.ts', { './dishMedia': compile('src/lib/dishMedia.ts'), './pricing': pricing, './orders': {}, './supabaseAdmin': { default: { from: () => query } }, './slug': {}, './storageAdmin': {} });
   return { api, writes };
 }
 test('API administrativa valida registro completo ao ativar e ao mudar preço regular', async () => {
