@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { normalizeDishAddons } from '@/lib/addons';
 import type { RelatedProduct } from '@/lib/dishMedia';
@@ -473,18 +474,29 @@ export default function Home({
         )}
         {!query.trim() && category === 'Todos' && dishes.some((d) => d.popular) && (
           <section className="featured-section" aria-labelledby="featured-heading">
-            <h2 id="featured-heading">Mais pedidos</h2>
-            <div className="offers-grid">
+            <div className="featured-heading-row">
+              <h2 id="featured-heading">Mais pedidos</h2>
+              <div className="featured-controls" aria-label="Navegação de mais pedidos">
+                <button type="button" aria-label="Pratos anteriores" onClick={() => document.getElementById('featured-track')?.scrollBy({ left: -280, behavior: 'smooth' })}>‹</button>
+                <button type="button" aria-label="Próximos pratos" onClick={() => document.getElementById('featured-track')?.scrollBy({ left: 280, behavior: 'smooth' })}>›</button>
+              </div>
+            </div>
+            <div className="featured-track" id="featured-track" role="region" aria-label="Pratos mais pedidos" tabIndex={0}>
               {dishes
                 .filter((d) => d.popular)
                 .slice(0, 4)
                 .map((d) => (
-                  <article className="offer-card" key={d.id}>
-                    <Link href={'/dishes/' + d.slug}>
-                      <b>{d.name}</b>
+                  <article className="featured-card" key={d.id}>
+                    <Link href={'/dishes/' + d.slug} className="featured-card-link">
+                      <div className="featured-photo">
+                        {d.image ? <Image src={d.image} alt={d.name} fill sizes="(max-width: 620px) 68vw, 220px" /> : <span>Fotografia não cadastrada</span>}
+                        {d.promo_active && d.promo_price != null && <b className="featured-offer-badge">OFERTA</b>}
+                      </div>
+                      <b className="featured-name">{d.name}</b>
                       <DishPrice dish={d} />
                     </Link>
                     <button
+                      className="featured-add"
                       type="button"
                       disabled={d.available === false || Number(d.stock ?? 0) < 1}
                       onClick={() => changeQuantity(d, 1)}

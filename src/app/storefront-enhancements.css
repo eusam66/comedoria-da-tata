@@ -104,6 +104,26 @@ body {
 .site-header {
   padding-top: env(safe-area-inset-top);
 }
+.featured-section { min-width:0; overflow:hidden; padding:22px 0 30px; }
+.featured-heading-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.featured-heading-row h2 { margin:0 0 12px; }
+.featured-controls { display:flex; gap:8px; }
+.featured-controls button { width:38px; height:38px; border:1px solid #5b2d1b33; border-radius:50%; background:var(--paper); color:var(--ink); font-size:24px; cursor:pointer; }
+.featured-track { display:flex; gap:14px; min-width:0; overflow-x:auto; overscroll-behavior-x:contain; scroll-snap-type:x mandatory; scroll-behavior:smooth; scrollbar-width:thin; padding:4px 2px 14px; }
+.featured-track:focus-visible { outline:3px solid #f58634; outline-offset:2px; }
+.featured-card { flex:0 0 min(210px, 68vw); min-width:0; overflow:hidden; scroll-snap-align:start; border-radius:18px; background:var(--paper); box-shadow:0 7px 20px #4a1d1115; }
+.featured-card-link { display:flex; flex-direction:column; gap:8px; padding-bottom:2px; color:inherit; text-decoration:none; }
+.featured-photo { height:118px; position:relative; overflow:hidden; display:grid; place-items:center; background:#fff8f1; }
+.featured-photo img { width:100%; height:100%; object-fit:cover; }
+.featured-photo > span { font-size:12px; color:var(--muted); }
+.featured-offer-badge { position:absolute; top:8px; left:8px; border-radius:999px; padding:4px 8px; color:white; background:#f58634; font-size:10px; }
+.featured-name { display:-webkit-box; overflow:hidden; padding:0 11px; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-height:1.2; min-height:2.4em; }
+.featured-card .dish-price { padding:0 11px; }
+.featured-add { display:block; width:calc(100% - 18px); min-height:40px; margin:7px 9px 9px; border:0; border-radius:12px; background:#f58634; color:#2a140f; font-weight:700; cursor:pointer; }
+.featured-add:disabled { background:#ded5ce; color:#51443d; cursor:not-allowed; }
+.featured-controls button:focus-visible,.featured-add:focus-visible { outline:3px solid #2a140f; outline-offset:2px; }
+@media (prefers-reduced-motion: reduce) { .featured-track { scroll-behavior:auto; } }
+@media (min-width: 900px) { .featured-track { gap:18px; } .featured-card { flex-basis:220px; } }
 @media (max-width: 620px) {
   html,
   body {
@@ -139,6 +159,9 @@ body {
   .beverage-card {
     flex-basis: 78vw;
   }
+  .featured-section { padding:18px 0 22px; }
+  .featured-card { flex-basis:68vw; }
+  .featured-photo { height:104px; }
   .beverage-photo {
     height: 190px;
   }
