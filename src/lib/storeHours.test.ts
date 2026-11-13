@@ -9,6 +9,7 @@ test('official schedule boundaries and next openings', () => {
   assert.equal(calculateStoreStatus({}, atRecife('2026-08-14T10:59:00')).label, 'Abre hoje às 11h');
   assert.equal(calculateStoreStatus({}, atRecife('2026-08-14T11:00:00')).isOpen, true);
   assert.equal(calculateStoreStatus({}, atRecife('2026-08-14T13:30:00')).isOpen, true);
+  assert.equal(calculateStoreStatus({}, atRecife('2026-08-14T13:30:00')).closingLabel, 'Até 15h');
   assert.equal(calculateStoreStatus({}, atRecife('2026-08-14T15:00:00')).isOpen, false);
   assert.equal(calculateStoreStatus({}, atRecife('2026-08-16T12:00:00')).isOpen, true);
   assert.equal(calculateStoreStatus({}, atRecife('2026-08-16T15:01:00')).label, 'Fechado • Abrimos sexta às 11h');
@@ -34,7 +35,8 @@ test('manual opening without expiry overrides closing hours and a normally close
     assert.equal(status.isOpen, true);
     assert.equal(status.mode, 'open');
     assert.equal(status.expiresAt, null);
-    assert.equal(status.label, 'ABERTO MANUALMENTE');
+    assert.equal(status.label, 'Aberto');
+    assert.equal(status.closingLabel, 'Até nova ordem');
   }
 });
 
@@ -52,6 +54,7 @@ test('manual closure remains closed during scheduled opening and after midnight'
     const status = calculateStoreStatus({ orderOverride: { mode: 'closed', expiresAt: null } }, atRecife(when));
     assert.equal(status.isOpen, false);
     assert.equal(status.mode, 'closed');
+    assert.equal(status.label, 'Fechado');
     assert.equal(status.label, 'FECHADO MANUALMENTE');
   }
 });
@@ -66,6 +69,7 @@ test('standard mode immediately applies the configured schedule and clears a leg
 test('legacy finite openings retain their deadline; expired or malformed deadlines fail closed outside the schedule', () => {
   const settings = { orderOverride: { mode: 'open' as const, expiresAt: '2026-08-15T21:00:00Z' } };
   assert.equal(calculateStoreStatus(settings, atRecife('2026-08-15T17:59:00')).isOpen, true);
+  assert.match(calculateStoreStatus(settings, atRecife('2026-08-15T17:59:00')).closingLabel || '', /^Até 15\/08,? 18:00$/);
   assert.equal(calculateStoreStatus(settings, atRecife('2026-08-15T18:00:00')).isOpen, false);
   assert.equal(calculateStoreStatus({ orderOverride: { mode: 'open', expiresAt: 'invalid' } }, atRecife('2026-08-17T12:00:00')).isOpen, false);
   assert.equal(calculateStoreStatus({ orderOverride: { mode: 'open', expiresAt: '' } }, atRecife('2026-08-17T12:00:00')).isOpen, false);
