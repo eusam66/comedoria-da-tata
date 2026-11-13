@@ -19,6 +19,7 @@ export type StoreStatus = {
   isOpen: boolean;
   label: string;
   nextOpeningLabel: string | null;
+  closingLabel?: string | null;
   temporarilyClosed: boolean;
   timezone: string;
 };
@@ -72,12 +73,14 @@ function localParts(now: Date, timezone: string) {
 export function calculateStoreStatus(settings: StorefrontSettings = {}, now = new Date()): StoreStatus {
   const override = settings.orderOverride;
   if (override?.mode === 'closed') {
-    return { isOpen: false, label: 'FECHADO MANUALMENTE', nextOpeningLabel: null, temporarilyClosed: true, timezone: STORE_TIMEZONE, mode: 'closed', expiresAt: null };
+    return { isOpen: false, label: 'Fechado', nextOpeningLabel: null, temporarilyClosed: true, timezone: STORE_TIMEZONE, mode: 'closed', expiresAt: null };
   }
   // Null (ou campo ausente em registros antigos) significa abertura persistente.
   // Expirações finitas antigas continuam válidas até o prazo já salvo.
   if (override?.mode === 'open' && (override.expiresAt == null || Date.parse(override.expiresAt) > now.getTime())) {
-    return { isOpen: true, label: 'ABERTO MANUALMENTE', nextOpeningLabel: null, temporarilyClosed: false, timezone: STORE_TIMEZONE, mode: 'open', expiresAt: override.expiresAt ?? null };
+    return { isOpen: true, label: 'Aberto', nextOpeningLabel: null, closingLabel: override.expiresAt
+      ? `Até ${new Intl.DateTimeFormat('pt-BR', { timeZone: STORE_TIMEZONE, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(override.expiresAt))}`
+      : 'Até nova ordem', temporarilyClosed: false, timezone: STORE_TIMEZONE, mode: 'open', expiresAt: override.expiresAt ?? null };
   }
   // Apenas uma abertura antiga com prazo vencido/inválido retorna à grade.
   if (override) settings = { ...settings, temporarilyClosed: false };
@@ -94,7 +97,7 @@ export function calculateStoreStatus(settings: StorefrontSettings = {}, now = ne
     return { isOpen: false, label: 'Fechado temporariamente', nextOpeningLabel: null, temporarilyClosed, timezone };
   }
   if (withinSchedule && !temporarilyClosed) {
-    return { isOpen: true, label: 'Aberto agora', nextOpeningLabel: null, temporarilyClosed, timezone };
+    return { isOpen: true, label: 'Aberto', nextOpeningLabel: null, closingLabel: `Até ${hourLabel(today.close)}`, temporarilyClosed, timezone };
   }
   if (today.enabled && local.minute < openMinute && !temporarilyClosed) {
     const label = `Abre hoje às ${hourLabel(today.open)}`;
