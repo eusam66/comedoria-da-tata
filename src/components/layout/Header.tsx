@@ -30,17 +30,9 @@ export default function Header({ avgTime }: { avgTime?: string }) {
                   : 'bg-rose-200/20 text-rose-100'
               }`}
             >
-              {!status
-                ? 'Consultando funcionamento...'
-                : status.mode === 'open'
-                ? 'ABERTO MANUALMENTE'
-                : status.mode === 'closed'
-                ? 'FECHADO MANUALMENTE'
-                : status.isOpen
-                ? 'Aberto agora'
-                : 'Fechado'}
+              {!status ? 'Consultando funcionamento...' : status.isOpen ? 'ABERTO' : 'FECHADO'}
             </span>
-            <span>{avgTime}</span>
+            <span>{status?.isOpen ? status.closingLabel || 'Até nova ordem' : status?.mode === 'closed' ? 'Até nova ordem' : status?.nextOpeningLabel || avgTime}</span>
           </div>
         </div>
 
